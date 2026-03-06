@@ -1,0 +1,358 @@
+import { useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
+import { motion, useInView } from 'framer-motion'
+import Aurora from '../components/Aurora'
+import SpotlightCard from '../components/SpotlightCard'
+import { useGhostSlayer } from '../hooks/useGhostSlayer'
+
+function CountUp({ end, suffix = '', duration = 2 }) {
+  const ref = useRef()
+  const isInView = useInView(ref, { once: true })
+  const countRef = useRef(null)
+  
+  useEffect(() => {
+    if (!isInView) return
+    let start = 0
+    const step = end / (duration * 60)
+    const timer = setInterval(() => {
+      start += step
+      if (start >= end) {
+        start = end
+        clearInterval(timer)
+      }
+      if (countRef.current) countRef.current.textContent = Math.floor(start) + suffix
+    }, 1000 / 60)
+    return () => clearInterval(timer)
+  }, [isInView, end, suffix, duration])
+
+  return <span ref={ref}><span ref={countRef}>0{suffix}</span></span>
+}
+
+function ScrollVelocityText({ text }) {
+  const repeated = text.repeat(6)
+  return (
+    <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', padding: '1.5rem 0', width: '100%' }}>
+      <motion.div
+        animate={{ x: ['0%', '-50%'] }}
+        transition={{ duration: 22, repeat: Infinity, ease: 'linear' }}
+        style={{ display: 'inline-block', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.18em', color: 'rgba(255,255,255,0.15)', width: 'max-content' }}
+      >
+        {repeated}{repeated}
+      </motion.div>
+    </div>
+  )
+}
+
+const features = [
+  {
+    icon: '🧠',
+    title: 'Fully Private',
+    desc: 'AI runs in YOUR browser. Conversations never leave your device. Not even encrypted — because there\'s nothing to encrypt.'
+  },
+  {
+    icon: '⚡',
+    title: 'Always Available',
+    desc: 'No login. No account. No server. No waiting. Start your session instantly, any time.'
+  },
+  {
+    icon: '🎯',
+    title: 'Choose Your Model',
+    desc: 'Pick your AI — from ultra-light SmolLM2 (360MB, instant) to Phi-3.5-mini (2.3GB, best quality). All run 100% on your device. No cloud, no cost, no compromise.',
+    models: [
+      { name: 'SmolLM2', size: '360MB', badge: '⚡ Instant' },
+      { name: 'Llama 3.2', size: '700MB', badge: '🚀 Fast' },
+      { name: 'Phi-3.5-mini', size: '2.3GB', badge: '⭐ Best' },
+    ]
+  }
+]
+
+export default function Landing() {
+  const { trackImpression } = useGhostSlayer()
+
+  useEffect(() => {
+    trackImpression('landing-page')
+  }, [])
+
+  return (
+    <div style={{ paddingTop: '64px' }}>
+      {/* Hero Section */}
+      <section style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <Aurora colors={['#7c3aed', '#06b6d4', '#1e1b4b', '#4f46e5']} />
+        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '2rem', maxWidth: '800px' }}>
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
+            <div style={{
+              display: 'inline-block',
+              background: 'rgba(124,58,237,0.2)',
+              border: '1px solid rgba(124,58,237,0.4)',
+              borderRadius: '100px',
+              padding: '0.4rem 1rem',
+              fontSize: '0.8rem',
+              color: '#a78bfa',
+              marginBottom: '1.5rem',
+              letterSpacing: '0.05em',
+            }}>
+              🔒 100% In-Browser AI — Zero Server Calls
+            </div>
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            style={{
+              fontSize: 'clamp(3rem, 8vw, 6rem)',
+              fontWeight: 900,
+              lineHeight: 1.05,
+              letterSpacing: '-0.03em',
+              marginBottom: '1.5rem',
+              background: 'linear-gradient(135deg, #f1f5f9 0%, #a78bfa 50%, #06b6d4 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
+            Innerflect
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+            style={{
+              fontSize: 'clamp(1.1rem, 2.5vw, 1.35rem)',
+              color: '#94a3b8',
+              maxWidth: '560px',
+              margin: '0 auto 2.5rem',
+              lineHeight: 1.7,
+            }}
+          >
+            A private, in-browser AI therapy companion. No server. No tracking. No account.{' '}
+            <span style={{ color: '#a78bfa' }}>Just you.</span>
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.8 }}
+            style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}
+          >
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link
+                to="/therapy"
+                style={{
+                  display: 'inline-block',
+                  background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                  color: '#fff',
+                  padding: '1rem 2.5rem',
+                  borderRadius: '12px',
+                  fontSize: '1.05rem',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  boxShadow: '0 0 40px rgba(124,58,237,0.4)',
+                }}
+              >
+                Start Therapy Session →
+              </Link>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link
+                to="/about"
+                style={{
+                  display: 'inline-block',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#94a3b8',
+                  padding: '1rem 2.5rem',
+                  borderRadius: '12px',
+                  fontSize: '1.05rem',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                Learn More
+              </Link>
+            </motion.div>
+          </motion.div>
+        </div>
+
+        {/* Scroll indicator */}
+        <motion.div
+          animate={{ y: [0, 10, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          style={{ position: 'absolute', bottom: '2rem', left: '50%', transform: 'translateX(-50%)', color: '#334155', fontSize: '1.5rem' }}
+        >
+          ↓
+        </motion.div>
+      </section>
+
+      {/* Features Section */}
+      <section style={{ padding: '6rem 2rem', maxWidth: '1100px', margin: '0 auto' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          style={{ textAlign: 'center', marginBottom: '4rem' }}
+        >
+          <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.8rem)', fontWeight: 800, marginBottom: '1rem', letterSpacing: '-0.02em' }}>
+            Why <span style={{ background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Innerflect</span>?
+          </h2>
+          <p style={{ color: '#64748b', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto' }}>
+            Mental wellness tools should be free, private, and accessible to everyone.
+          </p>
+        </motion.div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '4rem' }}>
+          {features.map((f, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.15 }}
+            >
+              <SpotlightCard style={{ height: '100%' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>{f.icon}</div>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.75rem', color: '#f1f5f9' }}>{f.title}</h3>
+                <p style={{ color: '#64748b', lineHeight: 1.7, fontSize: '0.95rem', marginBottom: f.models ? '1rem' : 0 }}>{f.desc}</p>
+                {f.models && (
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {f.models.map(m => (
+                      <div key={m.name} style={{
+                        padding: '0.3rem 0.6rem', borderRadius: '6px',
+                        background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.25)',
+                        fontSize: '0.75rem',
+                      }}>
+                        <span style={{ color: '#a78bfa', fontWeight: 600 }}>{m.badge}</span>
+                        <span style={{ color: '#64748b', marginLeft: '0.3rem' }}>{m.name} · {m.size}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SpotlightCard>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', textAlign: 'center' }}>
+          {[
+            { value: 0, suffix: ' data shared', label: 'Nothing ever leaves your device' },
+            { value: 100, suffix: '% private', label: 'All AI runs locally in browser' },
+            { value: 0, suffix: ' accounts needed', label: 'Jump in instantly, no sign-up' },
+          ].map((s, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+            >
+              <div style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 900, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                <CountUp end={s.value} suffix={s.suffix} />
+              </div>
+              <div style={{ color: '#475569', fontSize: '0.85rem', marginTop: '0.25rem' }}>{s.label}</div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section style={{ padding: '6rem 2rem', background: 'rgba(18,18,26,0.5)' }}>
+        <div style={{ maxWidth: '700px', margin: '0 auto', textAlign: 'center' }}>
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            style={{ fontSize: 'clamp(1.8rem, 3.5vw, 2.4rem)', fontWeight: 800, marginBottom: '3rem', letterSpacing: '-0.02em' }}
+          >
+            How It Works
+          </motion.h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {[
+              { step: '01', title: 'Choose & download once', desc: 'Pick your model — from 360MB (instant) to 2.3GB (best quality). Downloads once to your browser cache, then it\'s instant forever.' },
+              { step: '02', title: 'Chat privately', desc: 'Your words never leave your device. The AI processes everything locally using WebGPU.' },
+              { step: '03', title: 'Close & forget', desc: 'Close the tab — your conversation is gone. No history, no logs, no traces.' },
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.15 }}
+                style={{ display: 'flex', gap: '1.5rem', textAlign: 'left', alignItems: 'flex-start' }}
+              >
+                <div style={{
+                  minWidth: '52px',
+                  height: '52px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(6,182,212,0.2))',
+                  border: '1px solid rgba(124,58,237,0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  color: '#a78bfa',
+                  letterSpacing: '0.05em',
+                }}>
+                  {item.step}
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem', color: '#f1f5f9' }}>{item.title}</h3>
+                  <p style={{ color: '#64748b', lineHeight: 1.7, fontSize: '0.95rem' }}>{item.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Banner */}
+      <section style={{ padding: '6rem 2rem', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'radial-gradient(ellipse at center, rgba(124,58,237,0.15) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+        <ScrollVelocityText text="PRIVATE · SECURE · YOUR DEVICE · NO TRACKING · " />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          style={{ position: 'relative', zIndex: 1, padding: '2rem 0' }}
+        >
+          <h2 style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 900, marginBottom: '1rem', letterSpacing: '-0.02em' }}>
+            Ready to talk?
+          </h2>
+          <p style={{ color: '#64748b', marginBottom: '2rem', fontSize: '1.1rem' }}>
+            Your AI companion is waiting. No signup required.
+          </p>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{ display: 'inline-block' }}>
+            <Link
+              to="/therapy"
+              style={{
+                display: 'inline-block',
+                background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                color: '#fff',
+                padding: '1.1rem 3rem',
+                borderRadius: '12px',
+                fontSize: '1.1rem',
+                fontWeight: 700,
+                textDecoration: 'none',
+                boxShadow: '0 0 60px rgba(124,58,237,0.5)',
+              }}
+            >
+              Begin Your Session →
+            </Link>
+          </motion.div>
+        </motion.div>
+        <ScrollVelocityText text="AI THERAPY · POWERED BY PHI-3.5 · IN YOUR BROWSER · " />
+      </section>
+    </div>
+  )
+}

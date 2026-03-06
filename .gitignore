@@ -1,0 +1,44 @@
+# ── Secrets / config ─────────────────────────
+config/.env
+.env
+*.env
+
+# ── Binaries (too large, platform-specific) ──
+caddy
+bin/cloudflared
+bin/
+
+# ── Runtime data ─────────────────────────────
+data/
+logs/
+*.pid
+*.log
+
+# ── Python ────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+
+# ── OS ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Cloudflare tunnel credentials ─────────────
+*.json
+!slayer/ads.json
+!www/assets/**
+*.bak.*
+
+# Node
+node_modules/

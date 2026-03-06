@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="robots" content="noindex,nofollow,noarchive"/>
+<title>Admin — Innerflect</title>
+<script src="/config.js"></script>
+<script src="/admin/chart.min.js"></script>
+<style>
+:root{--bg:#07070d;--bg2:#0d0d15;--bg3:#13131c;--bg4:#1a1a25;--accent:#7c3aed;--accent2:#a855f7;--glow:rgba(124,58,237,.35);--text:#e8e8f0;--muted:#6b7280;--border:rgba(255,255,255,.07);--success:#22c55e;--warn:#f59e0b;--danger:#ef4444;--info:#38bdf8;--r:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;overflow:hidden}
+/* Login */
+#login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999}
+.login-box{background:var(--bg3);border:1px solid var(--border);border-radius:16px;padding:2.5rem;width:340px;display:flex;flex-direction:column;gap:1.25rem;box-shadow:0 0 60px rgba(124,58,237,.15)}
+.login-logo{font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,#a78bfa,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center}
+.login-sub{color:var(--muted);font-size:.85rem;text-align:center}
+.login-box input{background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.7rem .9rem;border-radius:8px;font-size:.9rem;outline:none;transition:border-color .2s;width:100%}
+.login-box input:focus{border-color:var(--accent)}
+.login-box button{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;padding:.75rem;border-radius:8px;font-weight:600;font-size:.9rem;cursor:pointer;box-shadow:0 0 14px var(--glow)}
+.login-err{color:#fca5a5;font-size:.8rem;text-align:center;display:none}
+/* Layout */
+#app{display:none;height:100vh;grid-template-columns:200px 1fr;grid-template-rows:52px 1fr}
+#app.show{display:grid}
+.topbar{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem;background:rgba(7,7,13,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);z-index:10}
+.logo{font-weight:800;font-size:.95rem;background:linear-gradient(135deg,#a78bfa,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.topbar-right{display:flex;align-items:center;gap:.75rem}
+.refresh-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;transition:all .2s}
+.refresh-btn:hover{border-color:var(--accent);color:var(--text)}
+.auto-badge{font-size:.72rem;color:var(--muted)}
+/* Sidebar */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:1rem 0;display:flex;flex-direction:column;gap:.1rem;overflow-y:auto}
+.nav-item{display:flex;align-items:center;gap:.6rem;padding:.55rem 1.1rem;color:var(--muted);cursor:pointer;transition:all .2s;font-size:.875rem;border-left:2px solid transparent;user-select:none}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.nav-item.active{color:var(--accent2);background:rgba(124,58,237,.08);border-left-color:var(--accent)}
+.nav-divider{height:1px;background:var(--border);margin:.5rem .75rem}
+/* Main */
+.main{overflow-y:auto;padding:1.25rem;display:flex;flex-direction:column;gap:1.25rem}
+.section{display:none;flex-direction:column;gap:1rem}
+.section.active{display:flex}
+.section-title{font-size:1rem;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.section-title-left{display:flex;align-items:center;gap:.5rem}
+/* Cards */
+.cards{display:grid;gap:.85rem}
+.cards-4{grid-template-columns:repeat(4,1fr)}
+.cards-3{grid-template-columns:repeat(3,1fr)}
+.cards-2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:900px){.cards-4{grid-template-columns:repeat(2,1fr)}.cards-3{grid-template-columns:repeat(2,1fr)}}
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.1rem}
+.card-label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.4rem}
+.card-val{font-size:1.6rem;font-weight:700;line-height:1}
+.card-sub{font-size:.75rem;color:var(--muted);margin-top:.3rem}
+/* Quick actions */
+.actions-row{display:flex;flex-wrap:wrap;gap:.6rem}
+/* Service cards */
+.svc-card{display:flex;align-items:center;gap:.75rem;padding:.85rem 1rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r)}
+.svc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.svc-dot.up{background:var(--success);box-shadow:0 0 8px rgba(34,197,94,.5)}
+.svc-dot.down{background:var(--danger);box-shadow:0 0 8px rgba(239,68,68,.5)}
+.svc-info{flex:1}
+.svc-name{font-weight:600;font-size:.875rem}
+.svc-meta{font-size:.75rem;color:var(--muted)}
+/* Bars */
+.bar-row{display:flex;flex-direction:column;gap:.4rem;padding:.75rem 0}
+.bar-label{display:flex;justify-content:space-between;font-size:.8rem}
+.bar-track{height:7px;background:var(--bg4);border-radius:999px;overflow:hidden}
+.bar-fill{height:100%;border-radius:999px;transition:width .6s ease}
+.bar-fill.cpu{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.bar-fill.ram{background:linear-gradient(90deg,#0ea5e9,#38bdf8)}
+.bar-fill.disk{background:linear-gradient(90deg,#059669,#10b981)}
+.bar-fill.redis{background:linear-gradient(90deg,#dc2626,#f87171)}
+/* Table */
+.tbl-wrap{overflow-x:auto;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:.5rem .75rem;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);background:var(--bg4)}
+td{padding:.65rem .75rem;font-size:.85rem;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge-pill{display:inline-flex;padding:.2rem .55rem;border-radius:999px;font-size:.72rem;font-weight:600}
+.pill-green{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.2)}
+.pill-red{background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.2)}
+.pill-yellow{background:rgba(245,158,11,.1);color:var(--warn);border:1px solid rgba(245,158,11,.2)}
+.pill-blue{background:rgba(56,189,248,.1);color:var(--info);border:1px solid rgba(56,189,248,.2)}
+.pill-purple{background:rgba(124,58,237,.1);color:var(--accent2);border:1px solid rgba(124,58,237,.2)}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:.35rem;padding:.4rem .85rem;border-radius:7px;font-size:.8rem;font-weight:600;cursor:pointer;border:none;transition:all .2s;white-space:nowrap}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-red{background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.25)}.btn-red:hover:not(:disabled){background:rgba(239,68,68,.22)}
+.btn-green{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.25)}.btn-green:hover:not(:disabled){background:rgba(34,197,94,.22)}
+.btn-purple{background:rgba(124,58,237,.15);color:var(--accent2);border:1px solid rgba(124,58,237,.3)}.btn-purple:hover:not(:disabled){background:rgba(124,58,237,.25)}
+.btn-blue{background:rgba(56,189,248,.12);color:var(--info);border:1px solid rgba(56,189,248,.25)}.btn-blue:hover:not(:disabled){background:rgba(56,189,248,.22)}
+.btn-yellow{background:rgba(245,158,11,.12);color:var(--warn);border:1px solid rgba(245,158,11,.25)}.btn-yellow:hover:not(:disabled){background:rgba(245,158,11,.22)}
+/* Log viewer */
+.log-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:.9rem;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.75rem;color:#9ca3af;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+/* Toast */
+#toast{position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none}
+.toast-msg{background:var(--bg4);border:1px solid var(--border);border-radius:9px;padding:.65rem 1rem;font-size:.82rem;min-width:220px;box-shadow:0 4px 24px rgba(0,0,0,.4);animation:slideIn .25s ease;pointer-events:auto}
+.toast-msg.ok{border-color:rgba(34,197,94,.3);color:#86efac}
+.toast-msg.err{border-color:rgba(239,68,68,.3);color:#fca5a5}
+@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* Therapy session list */
+.session-list{display:flex;flex-direction:column;gap:.4rem;max-height:320px;overflow-y:auto}
+.session-row{background:var(--bg4);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;cursor:pointer;transition:border-color .2s;display:flex;justify-content:space-between;align-items:center}
+.session-row:hover{border-color:var(--accent)}
+.session-row.active{border-color:var(--accent);background:rgba(124,58,237,.08)}
+.chat-thread{display:flex;flex-direction:column;gap:.6rem;max-height:380px;overflow-y:auto;background:var(--bg4);border:1px solid var(--border);border-radius:var(--r);padding:1rem}
+.ct-msg{display:flex;flex-direction:column;gap:.2rem;max-width:88%}
+.ct-msg.user{align-self:flex-end;align-items:flex-end}
+.ct-msg.ai{align-self:flex-start}
+.ct-bubble{padding:.5rem .85rem;border-radius:12px;font-size:.85rem;line-height:1.5}
+.ct-msg.user .ct-bubble{background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.3)}
+.ct-msg.ai .ct-bubble{background:var(--bg3);border:1px solid var(--border)}
+.ct-meta{font-size:.7rem;color:var(--muted)}
+/* Input row */
+.input-row{display:flex;gap:.5rem;align-items:center}
+.input-row input,.input-row select{background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.5rem .75rem;border-radius:7px;font-size:.85rem;outline:none;transition:border-color .2s;flex:1}
+.input-row input:focus,.input-row select:focus{border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login">
+  <div class="login-box">
+    <div class="login-logo">Innerflect admin</div>
+    <div class="login-sub">Enter admin token to continue</div>
+    <input id="tok" type="password" placeholder="Admin token" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    <button onclick="doLogin()">Sign In →</button>
+    <div class="login-err" id="login-err">Invalid token</div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div class="topbar">
+    <div class="logo">⚡ Innerflect admin</div>
+    <div class="topbar-right">
+      <span class="auto-badge" id="auto-badge">auto-refresh off</span>
+      <button class="refresh-btn" onclick="toggleAuto()">⏱ Auto</button>
+      <button class="refresh-btn" onclick="refreshAll()">↺ Refresh</button>
+      <button class="refresh-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="nav-item active" onclick="show('overview')">📊 Overview</div>
+    <div class="nav-item" onclick="show('services')">🟢 Services</div>
+    <div class="nav-item" onclick="show('system')">🖥 System</div>
+    <div class="nav-item" onclick="show('analytics')">📈 Analytics</div>
+    <div class="nav-divider"></div>
+    <div class="nav-item" onclick="show('messages')">💬 Messages</div>
+    <div class="nav-item" onclick="show('therapy')">🧠 TherapySpace</div>
+    <div class="nav-item" onclick="show('chat')">🗨 Live Chat</div>
+    <div class="nav-divider"></div>
+        <div class="nav-item" onclick="show('ads')">💰 Ads (ghostslayer)</div>
+    <div class="nav-item" onclick="show('redis')">🔴 Redis</div>
+    <div class="nav-item" onclick="show('logs')">📋 Logs</div>
+    <div class="nav-divider"></div>
+    <div class="nav-item" onclick="window.open('/','_blank')">🌐 View Site</div>
+    <div class="nav-item" onclick="window.open('/therapyspace','_blank')">�� TherapySpace</div>
+  </div>
+
+  <div class="main">
+
+    <!-- OVERVIEW -->
+    <div id="sec-overview" class="section active">
+      <div class="section-title">
+        <div class="section-title-left">📊 Overview</div>
+        <div class="actions-row">
+          <button class="btn btn-purple" onclick="sendDailyReport()">📤 Send Daily Report</button>
+          <button class="btn btn-blue" onclick="refreshAll()">↺ Refresh All</button>
+        </div>
+      </div>
+      <div class="cards cards-4" id="overview-cards">
+        <div class="card"><div class="card-label">Views Today</div><div class="card-val" id="ov-views-today">—</div><div class="card-sub">all-time: <span id="ov-views-total">—</span></div></div>
+        <div class="card"><div class="card-label">Messages</div><div class="card-val" id="ov-msgs-today">—</div><div class="card-sub">all-time: <span id="ov-msgs-total">—</span></div></div>
+        <div class="card"><div class="card-label">TherapySpace Msgs</div><div class="card-val" id="ov-ts-today">—</div><div class="card-sub">all-time: <span id="ov-ts-total">—</span></div></div>
+        <div class="card"><div class="card-label">API Uptime</div><div class="card-val" id="ov-uptime">—</div><div class="card-sub">since last restart</div></div>
+      </div>
+      <div class="cards cards-4" id="svc-overview"></div>
+    </div>
+
+    <!-- SERVICES -->
+    <div id="sec-services" class="section">
+      <div class="section-title">
+        <div class="section-title-left">🟢 Services</div>
+        <div class="actions-row">
+          <button class="btn btn-green" onclick="restartSvc('api')">↺ Restart API</button>
+          <button class="btn btn-green" onclick="restartSvc('chat')">↺ Restart Chat</button>
+          <button class="btn btn-yellow" onclick="restartSvc('caddy')">↺ Restart Caddy</button>
+          <button class="btn btn-blue" onclick="restartSvc('tailscale')">↺ Restart Tunnel</button>
+        </div>
+      </div>
+      <div class="cards cards-3" id="svc-cards"></div>
+    </div>
+
+    <!-- SYSTEM -->
+    <div id="sec-system" class="section">
+      <div class="section-title"><div class="section-title-left">🖥 System Resources</div></div>
+      <div class="card" id="sys-bars"></div>
+    </div>
+
+    <!-- ANALYTICS -->
+    <div id="sec-analytics" class="section">
+      <div class="section-title"><div class="section-title-left">📈 Analytics <span style="font-size:.75rem;color:var(--muted);font-weight:400">(anonymous)</span></div></div>
+      
+      <!-- Performance Metrics -->
+      <div style="margin-bottom:1.5rem">
+        <div style="font-size:.88rem;font-weight:600;margin-bottom:.75rem;color:var(--text)">⚡ Performance (Last 24h)</div>
+        <div class="cards cards-4">
+          <div class="card"><div class="card-label">Avg Load Time</div><div class="card-val" id="perf-avg-load">—</div></div>
+          <div class="card"><div class="card-label">P95 Load Time</div><div class="card-val" id="perf-p95-load">—</div></div>
+          <div class="card"><div class="card-label">Avg TTFB</div><div class="card-val" id="perf-avg-ttfb">—</div></div>
+          <div class="card"><div class="card-label">Samples</div><div class="card-val" id="perf-samples">—</div></div>
+        </div>
+        <div class="tbl-wrap" style="margin-top:1rem;max-height:300px">
+          <table><thead><tr><th>Page</th><th>Hits</th><th>Avg Load</th><th>P95 Load</th><th>Avg TTFB</th></tr></thead>
+          <tbody id="perf-body"></tbody></table>
+        </div>
+      </div>
+      
+      <!-- Page Views -->
+      <div style="font-size:.88rem;font-weight:600;margin-bottom:.75rem;color:var(--text)">📊 Page Views</div>
+      <div class="cards cards-3">
+        <div class="card"><div class="card-label">Top Page</div><div class="card-val" style="font-size:1rem" id="an-top">—</div></div>
+        <div class="card"><div class="card-label">Unique Pages</div><div class="card-val" id="an-pages">—</div></div>
+        <div class="card"><div class="card-label">Total Views</div><div class="card-val" id="an-total">—</div></div>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Page</th><th>Today</th><th>All-time</th></tr></thead>
+        <tbody id="analytics-body"></tbody></table>
+      </div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div id="sec-messages" class="section">
+      <div class="section-title">
+        <div class="section-title-left">💬 Contact Messages</div>
+        <button class="btn btn-red" onclick="delAllMsgs()">🗑 Delete All</button>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Name</th><th>Message</th><th>Contact</th><th>Date</th><th></th></tr></thead>
+        <tbody id="msgs-body"></tbody></table>
+      </div>
+    </div>
+
+    <!-- THERAPY -->
+    <div id="sec-therapy" class="section">
+      <div class="section-title">
+        <div class="section-title-left">🧠 TherapySpace Sessions</div>
+        <div class="actions-row">
+          <button class="btn btn-blue" onclick="loadTherapy()">↺ Refresh</button>
+          <button class="btn btn-red" onclick="delAllTherapy()">🗑 Delete All</button>
+        </div>
+      </div>
+      <div class="cards cards-3">
+        <div class="card"><div class="card-label">Total Messages</div><div class="card-val" id="ts-total">—</div></div>
+        <div class="card"><div class="card-label">Unique Sessions</div><div class="card-val" id="ts-sessions">—</div></div>
+        <div class="card"><div class="card-label">Today</div><div class="card-val" id="ts-today">—</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:260px 1fr;gap:1rem">
+        <div>
+          <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.04em">Sessions</div>
+          <div class="session-list" id="session-list"></div>
+        </div>
+        <div>
+          <div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem;text-transform:uppercase;letter-spacing:.04em">Conversation</div>
+          <div class="chat-thread" id="chat-thread"><div style="color:var(--muted);text-align:center;padding:2rem;font-size:.85rem">Select a session ←</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div id="sec-chat" class="section">
+      <div class="section-title"><div class="section-title-left">🗨 Live Chat Stats</div></div>
+      <div class="cards cards-3" id="chat-cards"></div>
+    </div>
+
+    <!-- LINKS -->
+    <div id="sec-links" class="section">
+      <div class="section-title"><div class="section-title-left">🔗 Short Links</div></div>
+      <div class="input-row">
+        <input id="link-url" placeholder="Destination URL (https://...)"/>
+        <input id="link-code" placeholder="Custom code (optional)" style="max-width:160px"/>
+        <button class="btn btn-purple" onclick="addLink()">+ Add Link</button>
+      </div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Code</th><th>URL</th><th>Hits</th><th></th></tr></thead>
+        <tbody id="links-body"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ADS (SLAYER) -->
+    <div id="sec-ads" class="section">
+      <div class="section-title">
+        <div class="section-title-left">💰 Ads — ghostslayer v4</div>
+        <div class="actions-row">
+          <button class="btn btn-green" onclick="adsEnableAll()">✓ Enable All</button>
+          <button class="btn btn-red"   onclick="adsDisableAll()">✕ Disable All</button>
+          <button class="btn btn-blue"  onclick="loadAds()">↺ Refresh</button>
+        </div>
+      </div>
+      <!-- Stats cards -->
+      <div class="cards cards-4">
+        <div class="card"><div class="card-label">Total Impressions</div><div class="card-val" id="ads-total-imp">—</div><div class="card-sub">all time</div></div>
+        <div class="card"><div class="card-label">Total Clicks</div><div class="card-val" id="ads-total-clk">—</div><div class="card-sub">all time</div></div>
+        <div class="card"><div class="card-label">CTR</div><div class="card-val" id="ads-total-ctr">—</div><div class="card-sub">click-through rate</div></div>
+        <div class="card"><div class="card-label">Active Slots</div><div class="card-val" id="ads-active-count">—</div><div class="card-sub">enabled</div></div>
+      </div>
+
+      <!-- ⚡ TURBO MODE (advanced) -->
+      <div class="card" id="turbo-card" style="border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.04)">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
+          <div>
+            <div class="card-label" style="color:#ef4444">⚡ Turbo Mode <span style="font-size:.72rem;color:var(--muted);font-weight:400">(advanced)</span></div>
+            <div style="font-size:.78rem;color:var(--muted);margin-top:.25rem">
+              Every <strong>click AND scroll</strong> fires <em>all</em> smartlinks simultaneously — ignores per-slot rate limits.
+              Normal mode uses the settings below. Site still looks 100% clean.
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.75rem;flex-shrink:0">
+            <label style="font-size:.78rem;color:var(--muted)">Min gap:</label>
+            <input id="turbo-gap" type="number" value="800" min="200" step="100"
+              style="width:70px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.3rem .5rem;border-radius:6px;font-size:.8rem"/> ms
+            <span id="turbo-status" class="badge-pill pill-red">Off</span>
+            <button id="turbo-btn" class="btn btn-green" onclick="turboToggle()" style="font-size:.78rem">Enable Turbo</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SmartLink URL Pool Manager -->
+      <div class="card">
+        <div class="card-label" style="margin-bottom:.75rem;font-size:.8rem">
+          🔗 Global SmartLink Pool
+          <span style="color:var(--muted);font-weight:400"> — every click on site opens a random URL from this list in a background tab</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.85rem;align-items:center">
+          <label style="font-size:.78rem;color:var(--muted)">Gap between opens:</label>
+          <input id="sl-cfg-delay" type="number" value="2500" min="500" step="500"
+            style="width:90px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.3rem .5rem;border-radius:6px;font-size:.8rem"/>
+          <label style="font-size:.78rem;color:var(--muted)">ms &nbsp; Max/session:</label>
+          <input id="sl-cfg-max" type="number" value="10" min="1" max="50"
+            style="width:60px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.3rem .5rem;border-radius:6px;font-size:.8rem"/>
+          <label style="font-size:.78rem;color:var(--muted)">&nbsp; Start after:</label>
+          <input id="sl-cfg-start" type="number" value="0" min="0" step="1000"
+            style="width:70px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.3rem .5rem;border-radius:6px;font-size:.8rem"/>
+          <label style="font-size:.78rem;color:var(--muted)">ms</label>
+          <button class="btn btn-purple" onclick="slSaveConfig()" style="font-size:.78rem">💾 Save Config</button>
+        </div>
+        <div id="sl-pool-list" style="max-height:260px;overflow-y:auto;margin-bottom:.75rem"></div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <input id="sl-new-url" type="url" placeholder="https://your-smartlink-or-affiliate-url.com/..."
+            style="flex:1;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.5rem .75rem;border-radius:7px;font-size:.85rem"
+            onkeydown="if(event.key==='Enter')slAddUrl()"/>
+          <button class="btn btn-green" onclick="slAddUrl()">+ Add URL</button>
+        </div>
+      </div>
+
+      <!-- ➕ Add Ad Unit -->
+      <div class="card">
+        <div class="card-label" style="margin-bottom:.85rem">➕ Add Ad Unit</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+          <div>
+            <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Ad Type</label>
+            <select id="new-ad-type" onchange="onAdTypeChange()"
+              style="width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.45rem .6rem;border-radius:7px;font-size:.85rem">
+              <option value="popunder">🔥 Popunder (Monetag)</option>
+              <option value="native_banner">📰 Native Banner (Monetag)</option>
+              <option value="social_bar">📱 Social Bar (Monetag)</option>
+              <option value="banner_script">🖼 Banner / Script (Monetag)</option>
+              <option value="smartlink">🔗 Smartlink (URL → background tab)</option>
+              <option value="script">⚙️ Custom Script / Other network</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Unique ID</label>
+            <input id="new-ad-id" type="text" placeholder="e.g. monetag-popunder-1"
+              style="width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.45rem .6rem;border-radius:7px;font-size:.85rem;box-sizing:border-box"/>
+          </div>
+        </div>
+        <!-- Help text changes per type -->
+        <div id="new-ad-help" style="font-size:.78rem;color:var(--accent2);background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:7px;padding:.6rem .8rem;margin-bottom:.75rem">
+          Go to Monetag → Create Ad Unit → select <strong>Popunder</strong> → copy the &lt;script&gt; tag and paste below.
+        </div>
+        <!-- Script paste (all types except smartlink URL) -->
+        <div id="new-ad-script-wrap">
+          <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Paste embed code</label>
+          <textarea id="new-ad-script" rows="5" placeholder="<script src='https://...'></script>"
+            style="width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.5rem .75rem;border-radius:7px;font-size:.8rem;font-family:monospace;box-sizing:border-box;resize:vertical"></textarea>
+        </div>
+        <!-- URL field (smartlink only) -->
+        <div id="new-ad-url-wrap" style="display:none">
+          <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Smartlink URL</label>
+          <input id="new-ad-url" type="url" placeholder="https://smartlink.example.com/..."
+            style="width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:.45rem .6rem;border-radius:7px;font-size:.85rem;box-sizing:border-box"/>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:.35rem">Opens in a background tab on click. Trigger: first click on page.</div>
+        </div>
+        <div style="margin-top:.85rem">
+          <button class="btn btn-green" onclick="addAdUnit()" style="font-size:.85rem">➕ Add (disabled by default — enable in table below)</button>
+        </div>
+      </div>
+
+      <!-- Ads table -->
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>ID / Name</th><th>Type</th><th>Details / Pages</th>
+            <th>Impr.</th><th>Clicks</th><th>CTR</th>
+            <th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            <tr id="ads-global-row" style="background:rgba(245,158,11,.04)"></tr>
+          </tbody>
+          <tbody id="ads-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REDIS -->
+    <div id="sec-redis" class="section">
+      <div class="section-title">
+        <div class="section-title-left">🔴 Redis Cache (30MB free)</div>
+        <div class="actions-row">
+          <button class="btn btn-blue" onclick="loadRedis()">↺ Refresh</button>
+          <button class="btn btn-red" onclick="flushRedis()">🗑 Flush Cache</button>
+        </div>
+      </div>
+      <div class="cards cards-3">
+        <div class="card"><div class="card-label">Used Memory</div><div class="card-val" id="rd-used">—</div><div class="card-sub">peak: <span id="rd-peak">—</span></div></div>
+        <div class="card"><div class="card-label">Limit</div><div class="card-val" id="rd-max">30MB</div><div class="card-sub">free tier</div></div>
+        <div class="card"><div class="card-label">Keys Stored</div><div class="card-val" id="rd-keys">—</div><div class="card-sub">rate-limits + cache</div></div>
+      </div>
+      <div class="card">
+        <div class="card-label" style="margin-bottom:.6rem">Memory Usage</div>
+        <div class="bar-track"><div class="bar-fill redis" id="rd-bar" style="width:0%"></div></div>
+        <div style="font-size:.75rem;color:var(--muted);margin-top:.4rem" id="rd-pct">0%</div>
+      </div>
+      <div class="card" id="rd-details"></div>
+    </div>
+
+    <!-- LOGS -->
+    <div id="sec-logs" class="section">
+      <div class="section-title">
+        <div class="section-title-left">�� Logs</div>
+        <div class="actions-row">
+          <button class="btn btn-purple" onclick="loadLog('api')">API</button>
+          <button class="btn btn-purple" onclick="loadLog('chat')">Chat</button>
+          <button class="btn btn-purple" onclick="loadLog('caddy')">Caddy</button>
+          <button class="btn btn-purple" onclick="loadLog('watchdog')">Watchdog</button>
+          <button class="btn btn-purple" onclick="loadLog('tailscale')">Tailscale</button>
+        </div>
+      </div>
+      <div class="log-box" id="log-box">Select a log above ↑</div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<div id="toast"></div>
+
+<script>
+const API = (window.VIDDEOXX_API_BASE || '') + '/api/admin';
+let TOKEN = sessionStorage.getItem('adm_tok') || '';
+let autoTimer = null;
+let activeSection = 'overview';
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(msg, type='ok', dur=3000) {
+  const el = document.createElement('div');
+  el.className = `toast-msg ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), dur);
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const v = document.getElementById('tok').value.trim();
+  if (!v) return;
+  try {
+    const r = await fetch(`${API}/system`, { headers: { 'Authorization': `Bearer ${v}` } });
+    if (r.status === 403) { document.getElementById('login-err').style.display = 'block'; return; }
+    TOKEN = v;
+    sessionStorage.setItem('adm_tok', TOKEN);
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('app').classList.add('show');
+    refreshAll();
+  } catch { document.getElementById('login-err').style.display = 'block'; }
+}
+function doLogout() {
+  TOKEN = ''; sessionStorage.removeItem('adm_tok');
+  location.reload();
+}
+if (TOKEN) {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+}
+
+// ── Fetch helper ──────────────────────────────────────────────────────────
+async function api(path, opts={}) {
+  const headers = { 'Authorization': `Bearer ${TOKEN}`, ...(opts.headers||{}) };
+  let r;
+  try { r = await fetch(`${API}${path}`, { ...opts, headers }); }
+  catch(e) { throw new Error('API unreachable — services may be down'); }
+  if (r.status === 403) { doLogout(); throw new Error('Unauthorized'); }
+  const text = await r.text();
+  if (!text) throw new Error(`Empty response (HTTP ${r.status})`);
+  let json;
+  try { json = JSON.parse(text); } catch(e) { throw new Error(`Server error (HTTP ${r.status})`); }
+  if (!r.ok) throw new Error(json.detail || json.error || `HTTP ${r.status}`);
+  return json;
+}
+
+// ── Section nav ───────────────────────────────────────────────────────────
+function show(name) {
+  activeSection = name;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+  document.querySelector(`[onclick="show('${name}')"]`)?.classList.add('active');
+  document.getElementById(`sec-${name}`)?.classList.add('active');
+  loadSection(name);
+}
+function loadSection(name) {
+  const map = { overview: loadOverview, services: loadServices, system: loadSystem,
+    analytics: loadAnalytics, messages: loadMessages, therapy: loadTherapy,
+    chat: loadChat, ads: loadAds, redis: loadRedis };
+  map[name]?.();
+}
+
+// ── Auto refresh ──────────────────────────────────────────────────────────
+function toggleAuto() {
+  if (autoTimer) { clearInterval(autoTimer); autoTimer = null; document.getElementById('auto-badge').textContent = 'auto-refresh off'; }
+  else { autoTimer = setInterval(refreshAll, 30000); document.getElementById('auto-badge').textContent = 'auto 30s'; }
+}
+function refreshAll() { loadSection(activeSection); loadServicesQuick(); }
+
+// ── Overview ──────────────────────────────────────────────────────────────
+async function loadOverview() {
+  try {
+    const [an, ts, msgs] = await Promise.all([
+      api('/analytics'), api('/therapy-sessions/summary'), api('/messages')
+    ]);
+    // analytics: by_path, by_day, total, alltime
+    const today = new Date().toISOString().slice(0,10);
+    const todayViews = an.by_day?.find(([d])=>d===today)?.[1] ?? 0;
+    document.getElementById('ov-views-today').textContent = todayViews;
+    document.getElementById('ov-views-total').textContent = an.alltime ?? an.total ?? '—';
+    // messages
+    const msgsToday = msgs.messages?.filter(m=>m.date?.startsWith(today)).length ?? 0;
+    document.getElementById('ov-msgs-today').textContent = msgsToday;
+    document.getElementById('ov-msgs-total').textContent = msgs.messages?.length ?? '—';
+    // therapy
+    document.getElementById('ov-ts-today').textContent = ts.today_messages ?? '—';
+    document.getElementById('ov-ts-total').textContent = ts.total_messages ?? '—';
+    // Uptime
+    const h = await fetch((window.VIDDEOXX_API_BASE || '') + '/api/health').then(r=>r.json()).catch(()=>({}));
+    const up = h.uptime_s ?? 0;
+    const hh = Math.floor(up/3600), mm = Math.floor((up%3600)/60);
+    document.getElementById('ov-uptime').textContent = up > 3600 ? `${hh}h ${mm}m` : `${mm}m`;
+  } catch(e){ toast('Overview load failed: '+e.message,'err'); }
+  loadServicesQuick();
+}
+
+async function loadServicesQuick() {
+  try {
+    const d = await api('/services');
+    const el = document.getElementById('svc-overview');
+    el.className = 'cards cards-4';
+    el.innerHTML = Object.values(d).map(s => `
+      <div class="card" style="display:flex;align-items:center;gap:.65rem;padding:.8rem 1rem">
+        <div class="svc-dot ${s.up?'up':'down'}"></div>
+        <div><div style="font-weight:600;font-size:.875rem">${s.label}</div>
+        <div style="font-size:.72rem;color:var(--muted)">${s.up?'Online':'Offline'}</div></div>
+      </div>`).join('');
+  } catch{}
+}
+
+// ── Services ──────────────────────────────────────────────────────────────
+async function loadServices() {
+  try {
+    const d = await api('/services');
+    document.getElementById('svc-cards').innerHTML = Object.entries(d).map(([k,s]) => `
+      <div class="svc-card">
+        <div class="svc-dot ${s.up?'up':'down'}"></div>
+        <div class="svc-info">
+          <div class="svc-name">${s.label}</div>
+          <div class="svc-meta">${s.up ? (s.code?'HTTP '+s.code:'Running') : (s.error||'Down')}</div>
+        </div>
+        ${['api','caddy','tailscale'].includes(k)?`<button class="btn btn-green" onclick="restartSvc('${k}')">↺</button>`:''}
+      </div>`).join('');
+  } catch(e){ toast('Services load failed','err'); }
+}
+
+async function restartSvc(svc) {
+  if (!confirm(`Restart ${svc}?`)) return;
+  toast(`Restarting ${svc}…`, 'ok', 5000);
+  try {
+    const d = await api(`/restart/${svc}`, {method:'POST'});
+    if (d.ok) { toast(`✅ ${svc} restarted`, 'ok'); setTimeout(loadServices, 2000); }
+    else toast(`❌ ${svc} restart failed: ${d.error||''}`, 'err', 5000);
+  } catch(e){ toast('Restart error: '+e.message,'err'); }
+}
+
+// ── System ────────────────────────────────────────────────────────────────
+async function loadSystem() {
+  try {
+    const d = await api('/system');
+    const fmt = b => b > 1e9 ? (b/1e9).toFixed(1)+'GB' : (b/1e6).toFixed(0)+'MB';
+    document.getElementById('sys-bars').innerHTML = `
+      <div class="bar-row">
+        <div class="bar-label"><span>CPU</span><span>${d.cpu_pct}% (${d.cpu_count} cores, load ${d.load_avg?.join('/')||'—'})</span></div>
+        <div class="bar-track"><div class="bar-fill cpu" style="width:${d.cpu_pct}%"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span>RAM</span><span>${fmt(d.ram_used)} / ${fmt(d.ram_total)} (${d.ram_pct}%)</span></div>
+        <div class="bar-track"><div class="bar-fill ram" style="width:${d.ram_pct}%"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span>Disk</span><span>${fmt(d.disk_used)} / ${fmt(d.disk_total)} (${d.disk_pct}%)</span></div>
+        <div class="bar-track"><div class="bar-fill disk" style="width:${d.disk_pct}%"></div></div>
+      </div>
+      <div style="display:flex;gap:1.5rem;font-size:.8rem;color:var(--muted);margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)">
+        <span>Python ${d.python}</span><span>${d.platform}</span>
+        <span>Net ↑${fmt(d.net_sent)} ↓${fmt(d.net_recv)}</span>
+        <span>Uptime ${Math.floor(d.uptime_s/3600)}h ${Math.floor((d.uptime_s%3600)/60)}m</span>
+      </div>`;
+  } catch(e){ toast('System load failed','err'); }
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────
+async function loadAnalytics() {
+  try {
+    // Load performance metrics
+    const perfData = await api('/analytics/perf?hours=24');
+    if (perfData && perfData.total_samples > 0) {
+      id('perf-avg-load').textContent = perfData.avg_load_time + 'ms';
+      id('perf-p95-load').textContent = perfData.p95_load_time + 'ms';
+      id('perf-avg-ttfb').textContent = perfData.avg_ttfb + 'ms';
+      id('perf-samples').textContent = perfData.total_samples;
+      
+      const pb = id('perf-body');
+      pb.innerHTML = (perfData.by_path || []).slice(0, 10).map(p => 
+        `<tr><td>${esc(p.path)}</td><td>${p.count}</td><td>${p.avg_load}ms</td><td>${p.p95_load}ms</td><td>${p.avg_ttfb}ms</td></tr>`
+      ).join('');
+    } else {
+      id('perf-samples').textContent = '0';
+      id('perf-avg-load').textContent = '—';
+      id('perf-p95-load').textContent = '—';
+      id('perf-avg-ttfb').textContent = '—';
+      id('perf-body').innerHTML = '<tr><td colspan=5 style="color:var(--muted);text-align:center">No performance data yet</td></tr>';
+    }
+    
+    // Load page views
+    const d = await api('/analytics');
+    // d.by_path = [[path, count], ...], d.alltime, d.by_day
+    const pages = d.by_path || [];
+    document.getElementById('an-total').textContent = d.alltime ?? d.total ?? '—';
+    document.getElementById('an-pages').textContent = pages.length;
+    document.getElementById('an-top').textContent = pages[0] ? `${pages[0][0]} (${pages[0][1]})` : '—';
+    const today = new Date().toISOString().slice(0,10);
+    // Get today counts per page from raw data — re-fetch with days=1 trick via total field
+    document.getElementById('analytics-body').innerHTML = pages.length ? pages.map(([path, cnt]) => `
+      <tr><td>${esc(path)}</td><td>—</td><td>${cnt}</td></tr>`).join('')
+      : '<tr><td colspan=3 style="color:var(--muted);text-align:center">No data yet</td></tr>';
+  } catch(e){ toast('Analytics load failed','err'); }
+}
+
+// ── Messages ──────────────────────────────────────────────────────────────
+async function loadMessages() {
+  try {
+    const d = await api('/messages');
+    document.getElementById('msgs-body').innerHTML = d.messages.length ? d.messages.map(m => `
+      <tr>
+        <td><strong>${esc(m.name)}</strong></td>
+        <td style="max-width:320px;word-break:break-word">${esc(m.message)}</td>
+        <td style="color:var(--muted)">${esc(m.reply_via||'—')}</td>
+        <td style="color:var(--muted);white-space:nowrap">${m.date}</td>
+        <td><button class="btn btn-red" onclick="delMsg(${m.id})">🗑</button></td>
+      </tr>`).join('')
+      : '<tr><td colspan=5 style="color:var(--muted);text-align:center;padding:2rem">No messages</td></tr>';
+  } catch(e){ toast('Messages load failed','err'); }
+}
+async function delMsg(id) {
+  await fetch(`${API}/messages/${id}?token=${enc(TOKEN)}`, {method:'DELETE'});
+  toast('Deleted','ok'); loadMessages();
+}
+async function delAllMsgs() {
+  if (!confirm('Delete ALL messages?')) return;
+  const d = await api('/messages');
+  await Promise.all(d.messages.map(m => fetch(`${API}/messages/${m.id}?token=${enc(TOKEN)}`,{method:'DELETE'})));
+  toast('All messages deleted','ok'); loadMessages();
+}
+
+// ── TherapySpace ──────────────────────────────────────────────────────────
+let _tsSessions = {};
+async function loadTherapy() {
+  try {
+    const [sum, log] = await Promise.all([api('/therapy-sessions/summary'), api('/therapy-sessions?limit=200')]);
+    document.getElementById('ts-total').textContent = sum.total_messages;
+    document.getElementById('ts-sessions').textContent = sum.unique_sessions;
+    document.getElementById('ts-today').textContent = sum.today_messages;
+    // Group by session
+    _tsSessions = {};
+    (log.sessions||[]).forEach(m => {
+      if (!_tsSessions[m.session_id]) _tsSessions[m.session_id] = [];
+      _tsSessions[m.session_id].push(m);
+    });
+    const list = document.getElementById('session-list');
+    const ids = Object.keys(_tsSessions);
+    if (!ids.length) { list.innerHTML = '<div style="color:var(--muted);font-size:.82rem;padding:.5rem">No sessions yet</div>'; return; }
+    list.innerHTML = ids.map(sid => {
+      const msgs = _tsSessions[sid];
+      const first = msgs[0]?.content?.slice(0,40)||'';
+      return `<div class="session-row" id="sr-${sid}" onclick="showSession('${sid}')">
+        <div><div style="font-size:.78rem;font-weight:600;color:var(--text)">${sid.slice(0,10)}…</div>
+        <div style="font-size:.72rem;color:var(--muted)">${msgs.length} msgs · ${msgs[0]?.date?.split(' ')[0]||''}</div></div>
+        <span class="badge-pill pill-purple">${msgs.filter(m=>m.role==='user').length}↑</span>
+      </div>`;
+    }).join('');
+  } catch(e){ toast('Therapy load failed: '+e.message,'err'); }
+}
+function showSession(sid) {
+  document.querySelectorAll('.session-row').forEach(el=>el.classList.remove('active'));
+  document.getElementById(`sr-${sid}`)?.classList.add('active');
+  const msgs = _tsSessions[sid]||[];
+  document.getElementById('chat-thread').innerHTML = msgs.length ? msgs.map(m => `
+    <div class="ct-msg ${m.role==='user'?'user':'ai'}">
+      <div class="ct-bubble">${esc(m.content)}</div>
+      <div class="ct-meta">${m.date} · ${m.model}</div>
+    </div>`).join('') : '<div style="color:var(--muted)">Empty</div>';
+}
+async function delAllTherapy() {
+  if (!confirm('Delete ALL therapy sessions?')) return;
+  // Direct SQLite via special endpoint
+  toast('Not implemented via UI (use API directly)','err',4000);
+}
+
+// ── Live Chat ─────────────────────────────────────────────────────────────
+async function loadChat() {
+  try {
+    const d = await api('/chat');
+    document.getElementById('chat-cards').innerHTML = Object.entries(d).map(([k,v]) => `
+      <div class="card"><div class="card-label">${k.replace(/_/g,' ')}</div>
+      <div class="card-val">${v}</div></div>`).join('');
+  } catch(e){ toast('Chat load failed','err'); }
+}
+
+// ── Ads (ghostslayer) ──────────────────────────────────────────────────────────
+let _adsConfig = null;
+let _adsStats  = null;
+let _slPool    = [];
+let _slConfig  = {};
+
+async function loadAds() {
+  try {
+    [_adsConfig, _adsStats] = await Promise.all([
+      api('/ads'),
+      api('/ads/stats'),
+    ]);
+    const sl = await api('/ads/smartlinks');
+    _slPool   = sl.pool   || [];
+    _slConfig = sl.config || {};
+    renderAdsTable();
+    renderSmartlinkPool();
+    renderTurboStatus();
+  } catch(e) { toast('Ads load failed: ' + e.message, 'err'); }
+}
+
+function renderAdsTable() {
+  const ads    = (_adsConfig?.ads || []).filter(a => a.id);
+  const stats  = _adsStats?.per_ad || {};
+  const totals = _adsStats?.totals || {};
+
+  // Global smartlink stats (pool fires count as 'smartlink-global')
+  const globalStats = stats['smartlink-global'] || { impressions: 0, clicks: 0, ctr: 0 };
+
+  // Summary cards
+  document.getElementById('ads-total-imp').textContent    = totals.impressions?.toLocaleString() ?? '0';
+  document.getElementById('ads-total-clk').textContent    = totals.clicks?.toLocaleString()      ?? '0';
+  document.getElementById('ads-total-ctr').textContent    = (totals.ctr ?? 0) + '%';
+  document.getElementById('ads-active-count').textContent = ads.filter(a => a.enabled !== false).length;
+
+  // Global smartlink summary row
+  const glRow = document.getElementById('ads-global-row');
+  if (glRow) {
+    const glOn = _slConfig.enabled !== false;
+    glRow.innerHTML = `
+      <td colspan="3">
+        <strong style="color:var(--warn)">🌐 Global SmartLink</strong>
+        <span style="font-size:.75rem;color:var(--muted);margin-left:.5rem">
+          every click → pool (${_slPool.length} URLs) · gap ${_slConfig.delay_between_ms ?? 2500}ms · max ${_slConfig.max_per_session ?? 10}/sess
+        </span>
+      </td>
+      <td>${globalStats.impressions.toLocaleString()}</td>
+      <td>${globalStats.clicks.toLocaleString()}</td>
+      <td>${globalStats.ctr}%</td>
+      <td><span class="badge-pill ${glOn ? 'pill-green' : 'pill-red'}">${glOn ? 'On' : 'Off'}</span></td>
+      <td>
+        <button class="btn ${glOn ? 'btn-red' : 'btn-green'}" onclick="slGlobalToggle()" style="font-size:.75rem;padding:.3rem .65rem">
+          ${glOn ? 'Disable' : 'Enable'}
+        </button>
+      </td>`;
+  }
+
+  const tbody = document.getElementById('ads-body');
+  tbody.innerHTML = '';
+  if (!ads.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--muted);text-align:center">No ads configured</td></tr>'; return; }
+
+  ads.forEach(ad => {
+    const s        = stats[ad.id] || { impressions: 0, clicks: 0, ctr: 0 };
+    const on       = ad.enabled !== false;
+    const ghost    = ad.visible === false;
+    const pages    = Array.isArray(ad.pages) ? ad.pages.join(', ') : '*';
+    const hasRot   = Array.isArray(ad.rotate) && ad.rotate.length > 1;
+    const isSL     = ad.type === 'smartlink';
+
+    const typeBadge = isSL
+      ? `<span class="badge-pill" style="background:rgba(245,158,11,.12);color:var(--warn);border:1px solid rgba(245,158,11,.25)">🔗 smartlink</span>`
+      : `<span class="badge-pill pill-purple">${ad.type}</span>`;
+
+    const ghostBadge = ghost
+      ? ` <span class="badge-pill" style="background:rgba(107,114,128,.1);color:#6b7280;border:1px solid rgba(107,114,128,.2);font-size:.65rem">ghost</span>`
+      : '';
+
+    let details = '';
+    if (isSL) {
+      const urlCount = Array.isArray(ad.urls) ? ad.urls.length : 0;
+      const trig     = ad.trigger?.type || 'click';
+      details = `<span style="font-size:.72rem;color:var(--muted)">${urlCount} URLs · ${trig} · max ${ad.max_per_session ?? 2}/sess</span>`;
+    } else {
+      const pos = ad.position || ad.inject_after || '—';
+      details   = `<span style="font-size:.8rem;color:var(--muted)">${pos}</span>`;
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <code style="color:var(--accent2);font-size:.8rem">${ad.id}</code>${ghostBadge}
+        ${hasRot ? ` <span class="badge-pill pill-blue" style="font-size:.65rem">rotate×${ad.rotate.length}</span>` : ''}
+      </td>
+      <td>${typeBadge}</td>
+      <td>${details}<br><span style="font-size:.72rem;color:var(--muted)">${pages}</span></td>
+      <td>${s.impressions.toLocaleString()}</td>
+      <td>${s.clicks.toLocaleString()}</td>
+      <td>${s.ctr}%</td>
+      <td><span class="badge-pill ${on ? 'pill-green' : 'pill-red'}">${on ? 'On' : 'Off'}</span></td>
+      <td>
+        <button class="btn ${on ? 'btn-red' : 'btn-green'}" onclick="adsToggle('${ad.id}')" style="font-size:.75rem;padding:.3rem .65rem">
+          ${on ? 'Disable' : 'Enable'}
+        </button>
+        <button class="btn btn-red" onclick="adsDel('${ad.id}')" style="font-size:.75rem;padding:.3rem .55rem;margin-left:.3rem;opacity:.7" title="Delete">🗑</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function adsToggle(adId) {
+  try {
+    const r = await api(`/ads/${encodeURIComponent(adId)}/toggle`, { method: 'POST' });
+    toast(`Ad "${adId}" ${r.enabled ? 'enabled' : 'disabled'}`, 'ok');
+    await loadAds();
+  } catch(e) { toast('Toggle failed: ' + e.message, 'err'); }
+}
+
+async function adsEnableAll() {
+  try {
+    await api('/ads/bulk', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({action:'enable'}) });
+    toast('All ads enabled', 'ok');
+    await loadAds();
+  } catch(e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function adsDisableAll() {
+  try {
+    await api('/ads/bulk', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({action:'disable'}) });
+    toast('All ads disabled', 'ok');
+    await loadAds();
+  } catch(e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function adsDel(adId) {
+  if (!confirm(`Delete ad "${adId}"? This cannot be undone.`)) return;
+  try {
+    await api(`/ads/${encodeURIComponent(adId)}`, { method: 'DELETE' });
+    toast(`Deleted "${adId}"`, 'ok');
+    await loadAds();
+  } catch(e) { toast('Delete failed: ' + e.message, 'err'); }
+}
+
+// ── Turbo Mode ────────────────────────────────────────────────────────────
+function renderTurboStatus() {
+  const t   = _adsConfig?.turbo_mode || {};
+  const on  = t.enabled === true;
+  const btn = document.getElementById('turbo-btn');
+  const st  = document.getElementById('turbo-status');
+  const gap = document.getElementById('turbo-gap');
+  if (btn) { btn.textContent = on ? '⚡ Disable Turbo' : 'Enable Turbo'; btn.className = on ? 'btn btn-red' : 'btn btn-green'; }
+  if (st)  { st.textContent = on ? 'ON' : 'Off'; st.className = on ? 'badge-pill pill-green' : 'badge-pill pill-red'; }
+  if (gap && t.min_gap_ms) gap.value = t.min_gap_ms;
+}
+
+async function turboToggle() {
+  const t      = _adsConfig?.turbo_mode || {};
+  const newVal = !(t.enabled === true);
+  const gap    = parseInt(document.getElementById('turbo-gap')?.value || '800', 10);
+  try {
+    await api('/ads/turbo', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newVal, min_gap_ms: gap }),
+    });
+    toast(`Turbo mode ${newVal ? '⚡ ENABLED' : 'disabled'}`, newVal ? 'ok' : 'ok');
+    await loadAds();
+  } catch(e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ── Add Ad Unit ───────────────────────────────────────────────────────────
+const AD_TYPE_HELP = {
+  popunder:      'Monetag → Create Ad Unit → <strong>Popunder</strong> → copy the &lt;script&gt; tag → paste below. Fires a background tab on click.',
+  native_banner: 'Monetag → Create Ad Unit → <strong>Native Banner</strong> → copy embed code → paste below. Renders native-looking ads invisibly.',
+  social_bar:    'Monetag → Create Ad Unit → <strong>Social Bar</strong> → copy embed code → paste below. Floating bar is hidden from users.',
+  banner_script: 'Monetag → Create Ad Unit → <strong>Banner</strong> → copy the script/iframe embed code → paste below.',
+  smartlink:     'Monetag → Create Ad Unit → <strong>Smartlink</strong> → copy the direct smartlink URL → paste in the URL field. Opens in background tab on first click.',
+  script:        'Any ad network — paste the full embed code (&lt;script&gt; tags, etc.) below. Injected invisibly.',
+};
+
+function onAdTypeChange() {
+  const type = document.getElementById('new-ad-type')?.value;
+  const help = document.getElementById('new-ad-help');
+  const scriptWrap = document.getElementById('new-ad-script-wrap');
+  const urlWrap    = document.getElementById('new-ad-url-wrap');
+  if (help) help.innerHTML = AD_TYPE_HELP[type] || '';
+  const isSL = type === 'smartlink';
+  if (scriptWrap) scriptWrap.style.display = isSL ? 'none' : 'block';
+  if (urlWrap)    urlWrap.style.display    = isSL ? 'block' : 'none';
+}
+
+async function addAdUnit() {
+  const type   = document.getElementById('new-ad-type')?.value;
+  const id     = document.getElementById('new-ad-id')?.value?.trim();
+  const script = document.getElementById('new-ad-script')?.value?.trim();
+  const url    = document.getElementById('new-ad-url')?.value?.trim();
+  if (!id)   { toast('Enter a unique ID', 'err'); return; }
+  if (type !== 'smartlink' && !script) { toast('Paste the embed code first', 'err'); return; }
+  if (type === 'smartlink' && !url)    { toast('Enter the smartlink URL', 'err'); return; }
+  const body = {
+    id, type,
+    script:  type !== 'smartlink' ? script : '',
+    urls:    type === 'smartlink'  ? [url]  : [],
+    enabled: false, visible: false, pages: ['*'],
+    trigger: type === 'smartlink' ? { type: 'click', repeat: false } : {},
+    max_per_session: 1, delay_between_ms: 3000,
+  };
+  try {
+    await api('/ads/add', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast(`Ad "${id}" added — enable it in the table below`, 'ok');
+    document.getElementById('new-ad-id').value     = '';
+    document.getElementById('new-ad-script').value = '';
+    document.getElementById('new-ad-url').value    = '';
+    await loadAds();
+  } catch(e) { toast('Add failed: ' + (e.message || 'error'), 'err'); }
+}
+
+function renderSmartlinkPool() {
+  const container = document.getElementById('sl-pool-list');
+  if (!container) return;
+
+  // Populate config inputs with current values
+  const d = document.getElementById('sl-cfg-delay');
+  const m = document.getElementById('sl-cfg-max');
+  const s = document.getElementById('sl-cfg-start');
+  if (d) d.value = _slConfig.delay_between_ms ?? 2500;
+  if (m) m.value = _slConfig.max_per_session  ?? 10;
+  if (s) s.value = _slConfig.start_after_ms   ?? 0;
+
+  if (!_slPool.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:.5rem 0">No URLs in pool yet — add one below.</div>';
+    return;
+  }
+
+  container.innerHTML = _slPool.map((url, i) => `
+    <div style="display:flex;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--border)">
+      <span style="min-width:1.5rem;color:var(--muted);font-size:.75rem">${i + 1}.</span>
+      <code style="flex:1;font-size:.78rem;color:var(--accent2);word-break:break-all">${esc(url)}</code>
+      <button class="btn btn-red" onclick="slRemoveUrl(${i})" style="font-size:.72rem;padding:.25rem .55rem">✕</button>
+    </div>`).join('');
+}
+
+async function slGlobalToggle() {
+  try {
+    const newVal = !(_slConfig.enabled !== false);
+    await api('/ads/smartlinks/config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newVal }),
+    });
+    toast(`Global SmartLink ${newVal ? 'enabled' : 'disabled'}`, 'ok');
+    await loadAds();
+  } catch(e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function slAddUrl() {
+  const input = document.getElementById('sl-new-url');
+  const url   = input?.value?.trim();
+  if (!url) return;
+  try {
+    await api('/ads/smartlinks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    input.value = '';
+    toast('URL added to pool', 'ok');
+    await loadAds();
+  } catch(e) { toast('Failed: ' + (e.message || 'error'), 'err'); }
+}
+
+async function slRemoveUrl(idx) {
+  try {
+    await api(`/ads/smartlinks/${idx}`, { method: 'DELETE' });
+    toast('URL removed', 'ok');
+    await loadAds();
+  } catch(e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function slSaveConfig() {
+  const delay  = parseInt(document.getElementById('sl-cfg-delay')?.value  || '2500', 10);
+  const maxSes = parseInt(document.getElementById('sl-cfg-max')?.value    || '10',   10);
+  const start  = parseInt(document.getElementById('sl-cfg-start')?.value  || '0',    10);
+  try {
+    await api('/ads/smartlinks/config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delay_between_ms: delay, max_per_session: maxSes, start_after_ms: start }),
+    });
+    toast('SmartLink config saved', 'ok');
+    await loadAds();
+  } catch(e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ── Short Links ───────────────────────────────────────────────────────────
+async function loadLinks() {
+  try {
+    const d = await api('/links');
+    document.getElementById('links-body').innerHTML = d.links.length ? d.links.map(l => `
+      <tr>
+        <td><a href="/go/${l.code}" target="_blank" style="color:var(--accent2)">${l.code}</a></td>
+        <td style="max-width:300px;word-break:break-all;color:var(--muted)">${esc(l.url)}</td>
+        <td>${l.hits}</td>
+        <td><button class="btn btn-red" onclick="delLink('${enc(l.code)}')">🗑</button></td>
+      </tr>`).join('')
+      : '<tr><td colspan=4 style="color:var(--muted);text-align:center;padding:1.5rem">No links yet</td></tr>';
+  } catch(e){ toast('Links load failed','err'); }
+}
+async function addLink() {
+  const url = document.getElementById('link-url').value.trim();
+  const code = document.getElementById('link-code').value.trim();
+  if (!url) { toast('Enter a URL','err'); return; }
+  try {
+    const d = await api('/links', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url,code:code||undefined}) });
+    if (d.code) { toast(`✅ Created: /go/${d.code}`,'ok'); document.getElementById('link-url').value=''; document.getElementById('link-code').value=''; loadLinks(); }
+    else toast(d.detail||'Error','err');
+  } catch(e){ toast(e.message,'err'); }
+}
+async function delLink(code) {
+  await fetch(`${API}/links/${code}?token=${enc(TOKEN)}`, {method:'DELETE'});
+  toast('Deleted','ok'); loadLinks();
+}
+
+// ── Redis ─────────────────────────────────────────────────────────────────
+async function loadRedis() {
+  try {
+    const d = await api('/redis');
+    if (!d.connected) { toast('Redis not connected: '+(d.reason||''),'err'); return; }
+    const usedMB = (d.used_bytes/1048576).toFixed(2);
+    const peakMB = (d.peak_bytes/1048576).toFixed(2);
+    const limitMB = 30;
+    const pct = Math.min(100, ((d.used_bytes/1048576)/limitMB*100)).toFixed(1);
+    document.getElementById('rd-used').textContent = usedMB+'MB';
+    document.getElementById('rd-peak').textContent = peakMB+'MB';
+    document.getElementById('rd-keys').textContent = d.keys ?? '—';
+    document.getElementById('rd-bar').style.width = pct+'%';
+    document.getElementById('rd-pct').textContent = pct+'% of 30MB used';
+    document.getElementById('rd-details').innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:1.5rem;font-size:.82rem;color:var(--muted)">
+        <span>Version: ${d.version||'—'}</span>
+        <span>Connected clients: ${d.connected_clients??'—'}</span>
+        <span>Hit ratio: ${d.hit_ratio||'—'}</span>
+        <span>Uptime: ${d.uptime_days??'—'}d</span>
+        <span>Eviction: ${d.eviction_policy||'—'}</span>
+      </div>`;
+  } catch(e){ toast('Redis load failed: '+e.message,'err'); }
+}
+async function flushRedis() {
+  if (!confirm('Flush all Redis cache keys? Rate limits will reset.')) return;
+  try {
+    const d = await api('/redis/flush', {method:'POST'});
+    toast(`✅ Flushed ${d.keys_flushed} keys`,'ok');
+    loadRedis();
+  } catch(e){ toast('Flush failed: '+e.message,'err'); }
+}
+
+// ── Logs ──────────────────────────────────────────────────────────────────
+async function loadLog(name) {
+  document.getElementById('log-box').textContent = `Loading ${name} log…`;
+  try {
+    const d = await api(`/log/${name}`);
+    document.getElementById('log-box').textContent = d.lines?.join('\n') || '(empty)';
+    document.getElementById('log-box').scrollTop = 999999;
+  } catch(e){ document.getElementById('log-box').textContent = 'Error: '+e.message; }
+}
+
+// ── Daily report ──────────────────────────────────────────────────────────
+async function sendDailyReport() {
+  try {
+    const d = await api('/daily-report');
+    toast('✅ Report sent to Discord','ok');
+  } catch(e){ toast('Failed: '+e.message,'err'); }
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────
+function esc(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+function enc(s){ return encodeURIComponent(s); }
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+document.getElementById('tok').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+if (TOKEN) { setTimeout(refreshAll, 100); }
+</script>
+</body>
+</html>

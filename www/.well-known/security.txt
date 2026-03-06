@@ -1,0 +1,8 @@
+Contact: mailto:security@viddeoxx.is-a.dev
+Preferred-Languages: en
+Canonical: https://viddeoxx.is-a.dev/.well-known/security.txt
+Policy: https://viddeoxx.is-a.dev/privacy.html
+
+# We do not collect or store personal data.
+# We do not use cookies or tracking technologies.
+# All ads are self-hosted — no third-party ad networks.

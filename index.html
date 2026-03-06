@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ── Primary SEO ─────────────────────────────────────────────────── -->
+    <title>Innerflect — Private AI Companion | Runs Entirely In Your Browser</title>
+    <meta name="description" content="Innerflect is a free, 100% private AI companion that runs entirely in your browser. No server, no account required. Your conversations never leave your device. Powered by WebLLM." />
+    <meta name="keywords" content="AI therapy, private AI chat, free AI companion, browser AI, WebLLM, mental health AI, AI counselor, no login AI, offline AI, AI support" />
+    <meta name="author" content="Innerflect" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://innerflect.netlify.app/" />
+
+    <!-- ── Open Graph / Facebook ───────────────────────────────────────── -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://innerflect.netlify.app/" />
+    <meta property="og:title" content="Innerflect — Free Private AI Therapy Companion" />
+    <meta property="og:description" content="Talk to an AI therapy companion that runs 100% in your browser. Zero data sent to any server. Completely private, always free to start." />
+    <meta property="og:image" content="https://innerflect.netlify.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="Innerflect" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- ── Twitter / X Card ───────────────────────────────────────────── -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Innerflect" />
+    <meta name="twitter:title" content="Innerflect — Free Private AI Therapy Companion" />
+    <meta name="twitter:description" content="Talk to an AI therapy companion that runs 100% in your browser. Zero data sent to any server. Always private." />
+    <meta name="twitter:image" content="https://innerflect.netlify.app/og-image.png" />
+
+    <!-- ── Icons + Theme ──────────────────────────────────────────────── -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- ── Performance hints ──────────────────────────────────────────── -->
+    <link rel="preconnect" href="https://accounts.google.com" />
+    <link rel="dns-prefetch" href="https://raw.githubusercontent.com" />
+    <link rel="dns-prefetch" href="https://huggingface.co" />
+
+    <!-- ── JSON-LD Structured Data ────────────────────────────────────── -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Innerflect",
+      "url": "https://innerflect.netlify.app",
+      "description": "A free, private AI therapy companion that runs entirely in your browser using WebLLM. No data leaves your device.",
+      "applicationCategory": "HealthApplication",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires WebGPU support (Chrome 113+, Edge 113+)",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "description": "Free — AI therapy companion, no account required"
+      },
+      "featureList": [
+        "100% private — AI runs in browser",
+        "No account required to start",
+        "Multiple AI model sizes",
+        "Permanent model caching",
+        "WebGPU accelerated"
+      ],
+      "creator": {
+        "@type": "Organization",
+        "name": "Innerflect"
+      }
+    }
+    </script>
+
+    <!-- ── Google Sign-In ─────────────────────────────────────────────── -->
+    <!-- Replace YOUR_GOOGLE_CLIENT_ID with real client ID from Google Cloud Console -->
+    <!-- https://console.cloud.google.com/apis/credentials -->
+    <meta name="google-signin-client_id" content="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com" />
+
+    <script src="/config.js"></script>
+    <!-- Google Identity Services — required for Google Sign-In in AuthModal -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

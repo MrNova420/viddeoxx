@@ -1,0 +1,148 @@
+# ─────────────────────────────────────────────────────────────────
+#  Caddyfile — viddeoxx
+#  Secure · Private · Anonymous
+#  No user tracking. No external requests. No IP logging.
+# ─────────────────────────────────────────────────────────────────
+
+:{$WEB_PORT:8090} {
+	# ── Access log: IPs stripped (privacy) ───────────────────────
+	log {
+		output file /tmp/vx-access.log {
+			roll_size 10mb
+			roll_keep 3
+		}
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip delete
+				request>remote_port delete
+				request>headers>X-Forwarded-For delete
+				request>headers>CF-Connecting-IP delete
+				request>headers>User-Agent delete
+			}
+		}
+		level WARN
+	}
+
+	# ── Security + Privacy headers (applied to ALL routes) ────────
+	# CSP is intentionally NOT set here — set per route below to
+	# avoid Caddy evaluating matchers against rewritten URIs.
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		X-XSS-Protection "0"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		# Skip ngrok browser warning interstitial — visitors land directly on the site
+		Ngrok-Skip-Browser-Warning "1"
+		-Server
+		-X-Powered-By
+		-Via
+		-X-Cache
+	}
+
+	# COEP: strict everywhere except TherapySpace
+	# TherapySpace needs 'credentialless' so HuggingFace model files download correctly
+	@coep_strict not path /therapyspace*
+	header @coep_strict Cross-Origin-Embedder-Policy "require-corp"
+	header @coep_strict Cross-Origin-Resource-Policy "same-origin"
+	@coep_ts path /therapyspace*
+	header @coep_ts Cross-Origin-Embedder-Policy "credentialless"
+
+	# ── Compression ───────────────────────────────────────────────
+	encode {
+		zstd
+		gzip 6
+		minimum_length 256
+	}
+
+	# ── No crawl on sensitive paths ───────────────────────────────
+	@sensitive path /api/* /data/* /logs/* /config/* /.env
+	header @sensitive X-Robots-Tag "noindex, nofollow, noarchive, noimageindex"
+
+	# ── Static asset caching (CSS, JS, images, fonts) ─────────────
+	@static path *.css *.woff2 *.woff *.ttf *.svg *.png *.jpg *.jpeg *.webp *.ico
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	# Service worker must never be cached
+	@sw path /sw.js
+	header @sw Cache-Control "no-store, no-cache"
+	header @sw Service-Worker-Allowed "/"
+
+	# ── MindSpace → TherapySpace redirect ────────────────────────
+	handle /mindspace* {
+		redir /therapyspace{uri} 301
+	}
+
+	# ── TherapySpace AI ────────────────────────────────────────────
+	# Permissive CSP: allows jsdelivr (transformers.js) + HuggingFace (model download)
+	handle /therapyspace* {
+		uri strip_prefix /therapyspace
+		root * {$SITE_DIR}/www/therapyspace
+		file_server {
+			index index.html
+		}
+		header Content-Security-Policy "default-src 'self' blob: data:; script-src 'self' https://cdn.jsdelivr.net blob: 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://cdn.jsdelivr.net https://*.huggingface.co https://huggingface.co https://*.hf.co blob:; worker-src 'self' blob: https://cdn.jsdelivr.net; child-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'"
+	}
+
+	# ── Admin dashboard ────────────────────────────────────────────
+	handle /admin* {
+		uri strip_prefix /admin
+		root * {$SITE_DIR}/admin
+		file_server {
+			index index.html
+			hide .git
+		}
+		try_files {path} /index.html
+		header X-Robots-Tag "noindex, nofollow, noarchive"
+		header Cache-Control "no-store, no-cache"
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	}
+
+	# ── Slayer ads ─────────────────────────────────────────────────
+	handle /ghostslayer/* {
+		root * {$SITE_DIR}
+		file_server {
+			hide .git *.sh *.py *.md
+		}
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+	}
+
+	# ── Main API → FastAPI (rate limited) ────────────────────────
+	handle /api/* {
+		# Simple brute-force protection via header forwarding
+		# For real rate limiting, use caddy-ratelimit module or nginx
+		@api_abuse {
+			not header_regexp User-Agent "Mozilla|Chrome|Firefox|Safari|curl|python"
+		}
+		reverse_proxy localhost:{$API_PORT:8000} {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_down -Server
+			flush_interval -1
+		}
+	}
+
+	# ── URL shortener removed — redirect /go/* to home ─────────────
+	handle /go/* {
+		redir / 302
+	}
+
+	# ── Health (no log) ───────────────────────────────────────────
+	handle /health {
+		respond `{"status":"ok"}` 200
+	}
+
+	# ── Static site (catch-all) ───────────────────────────────────
+	handle {
+		root * {$SITE_DIR}/www
+		file_server {
+			index index.html
+			hide .git .env *.sh *.py
+		}
+		try_files {path} /index.html
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+	}
+}

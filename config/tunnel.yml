@@ -1,0 +1,18 @@
+# ─────────────────────────────────────────────
+#  Cloudflare Tunnel config
+#  Named tunnel → persistent URL
+#  innerflect.is-a.dev → this machine
+# ─────────────────────────────────────────────
+
+# Fill in your tunnel UUID after running:
+#   cloudflared tunnel create innerflect
+tunnel: TUNNEL_UUID_HERE
+credentials-file: /home/mrnova420/.cloudflared/TUNNEL_UUID_HERE.json
+
+ingress:
+  # Main site
+  - hostname: innerflect.is-a.dev
+    service: http://localhost:8090
+
+  # Catch-all (required)
+  - service: http_status:404

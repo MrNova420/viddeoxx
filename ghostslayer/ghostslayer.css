@@ -1,0 +1,165 @@
+/* ─────────────────────────────────────────────
+   slayer.css — ad layer styles
+   Completely separate from main site CSS
+───────────────────────────────────────────── */
+
+/* ── Reset for slayer elements ───────────────── */
+.slayer-ad * { box-sizing: border-box; }
+
+/* ── Shared ──────────────────────────────────── */
+.slayer-ad {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  position: relative;
+  z-index: 500;
+}
+
+.slayer-label {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #7878a0;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-bottom: 4px;
+  pointer-events: none;
+}
+
+.slayer-close {
+  position: absolute;
+  top: 6px; right: 8px;
+  background: none;
+  border: none;
+  color: #7878a0;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color .15s, background .15s;
+  z-index: 10;
+}
+.slayer-close:hover { color: #fff; background: rgba(255,255,255,.1); }
+
+/* ── Animate in ──────────────────────────────── */
+.slayer-fadein {
+  animation: slayerFadeIn .4s ease forwards;
+}
+@keyframes slayerFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Banner (top / bottom) ───────────────────── */
+.slayer-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 48px 8px 16px;
+  min-height: 52px;
+  background: #0d0d1a;
+  border-bottom: 1px solid rgba(124,58,237,.2);
+}
+.slayer-banner-bottom {
+  border-bottom: none;
+  border-top: 1px solid rgba(124,58,237,.2);
+}
+.slayer-banner img { max-height: 90px; width: auto; display: block; }
+
+/* ── Inline card ─────────────────────────────── */
+.slayer-inline-wrap {
+  padding: 0 2rem 2rem;
+  display: flex;
+  justify-content: center;
+}
+.slayer-inline-card {
+  max-width: 640px;
+  width: 100%;
+  background: #111118;
+  border: 1px solid rgba(124,58,237,.25);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  position: relative;
+}
+.slayer-inline-card img {
+  width: 80px; height: 80px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.slayer-inline-card-body { flex: 1; min-width: 0; }
+.slayer-inline-card-body h4 {
+  font-size: 1rem; font-weight: 700; color: #e8e8f0;
+  margin: 0 0 .3rem;
+}
+.slayer-inline-card-body p { font-size: .875rem; color: #7878a0; margin: 0 0 .75rem; }
+.slayer-btn {
+  display: inline-flex; align-items: center;
+  padding: .45rem 1rem; border-radius: 6px;
+  background: #7c3aed; color: #fff;
+  font-size: .85rem; font-weight: 600;
+  text-decoration: none; border: none; cursor: pointer;
+  transition: background .15s;
+}
+.slayer-btn:hover { background: #a855f7; }
+
+/* ── Sidebar (fixed) ─────────────────────────── */
+.slayer-sidebar {
+  position: fixed;
+  top: 120px;
+  z-index: 900;
+  background: #111118;
+  border: 1px solid rgba(124,58,237,.25);
+  border-radius: 8px;
+  padding: 8px;
+}
+.slayer-sidebar-right { right: 12px; }
+.slayer-sidebar-left  { left:  12px; }
+
+/* ── Popup ───────────────────────────────────── */
+.slayer-popup-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0,0,0,.75);
+  display: flex; align-items: center; justify-content: center;
+  animation: slayerFadeIn .25s ease;
+}
+.slayer-popup-box {
+  background: #1a1a24;
+  border: 1px solid rgba(124,58,237,.4);
+  border-radius: 14px;
+  padding: 2rem;
+  max-width: 420px;
+  width: 90%;
+  position: relative;
+  text-align: center;
+}
+.slayer-popup-box h2 { color: #e8e8f0; margin: 0 0 .75rem; font-size: 1.4rem; }
+.slayer-popup-box p  { color: #7878a0; margin: 0 0 1.25rem; }
+
+/* ── Sticky corner ───────────────────────────── */
+.slayer-sticky {
+  position: fixed; z-index: 900;
+  background: #111118;
+  border: 1px solid rgba(124,58,237,.25);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.4);
+}
+.slayer-sticky-bottom-right { bottom: 20px; right: 20px; }
+.slayer-sticky-bottom-left  { bottom: 20px; left:  20px; }
+.slayer-sticky-top-right    { top: 80px;    right: 20px; }
+
+/* ── Mobile ──────────────────────────────────── */
+@media (max-width: 640px) {
+  .slayer-sidebar { display: none; }
+  .slayer-sticky  { bottom: 10px; right: 10px; }
+  .slayer-inline-card { flex-direction: column; }
+  .slayer-inline-card img { width: 100%; height: 140px; }
+}

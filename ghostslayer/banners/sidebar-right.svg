@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="600" viewBox="0 0 160 600">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f0f1a"/>
+      <stop offset="100%" stop-color="#1a0a2e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+  <rect width="160" height="600" rx="8" fill="url(#bg)"/>
+  <rect width="160" height="600" rx="8" fill="none" stroke="#7c3aed" stroke-width="1" opacity="0.25"/>
+  <!-- Top accent bar -->
+  <rect width="160" height="4" rx="2" fill="url(#accent)"/>
+  <!-- Icon area -->
+  <rect x="40" y="40" width="80" height="80" rx="16" fill="url(#accent)" opacity="0.15"/>
+  <text x="80" y="93" font-family="Arial,sans-serif" font-size="36" font-weight="900" fill="url(#accent)" text-anchor="middle">vx</text>
+  <!-- Headline -->
+  <text x="80" y="165" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif" font-size="14" font-weight="700" fill="#e8e8f0" text-anchor="middle">Your Ad</text>
+  <text x="80" y="185" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif" font-size="14" font-weight="700" fill="#e8e8f0" text-anchor="middle">Here</text>
+  <!-- Body text -->
+  <text x="80" y="220" font-family="Arial,sans-serif" font-size="11" fill="#9ca3af" text-anchor="middle">160×600</text>
+  <text x="80" y="238" font-family="Arial,sans-serif" font-size="11" fill="#9ca3af" text-anchor="middle">Skyscraper</text>
+  <text x="80" y="260" font-family="Arial,sans-serif" font-size="10" fill="#6b7280" text-anchor="middle">Edit in</text>
+  <text x="80" y="276" font-family="Arial,sans-serif" font-size="10" fill="#6b7280" text-anchor="middle">ads.json</text>
+  <!-- Decorative lines -->
+  <rect x="20" y="300" width="120" height="1" fill="#7c3aed" opacity="0.2"/>
+  <rect x="20" y="400" width="120" height="1" fill="#7c3aed" opacity="0.15"/>
+  <!-- Bottom CTA -->
+  <rect x="14" y="530" width="132" height="44" rx="8" fill="url(#accent)"/>
+  <text x="80" y="557" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">Learn More →</text>
+</svg>

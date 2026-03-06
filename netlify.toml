@@ -1,0 +1,40 @@
+[build]
+  publish = "www"
+
+# SPA fallback — serve index.html for any path that isn't a real file
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    X-XSS-Protection = "1; mode=block"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    # Allow WebLLM WASM/model downloads from GitHub raw CDN + MLC CDN
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://accounts.google.com https://apis.google.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.ngrok-free.app https://*.ngrok.io https://raw.githubusercontent.com https://huggingface.co https://*.huggingface.co https://cdn.jsdelivr.net https://oauth2.googleapis.com https://accounts.google.com; frame-src https://accounts.google.com; media-src 'none'; object-src 'none';"
+
+# Service worker — never cache (must always be fresh)
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-store, no-cache"
+    Service-Worker-Allowed = "/"
+
+# config.js — no cache so backend URL updates take effect immediately
+[[headers]]
+  for = "/config.js"
+  [headers.values]
+    Cache-Control = "no-store, no-cache"
+
+# Static assets — long cache
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

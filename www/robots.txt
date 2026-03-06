@@ -1,0 +1,33 @@
+User-agent: *
+Allow: /
+Allow: /about.html
+Allow: /contact.html
+Allow: /privacy.html
+
+# Block crawlers from API, config, logs, data
+Disallow: /api/
+Disallow: /data/
+Disallow: /logs/
+Disallow: /config/
+Disallow: /slayer/banners/
+Disallow: /*.sh$
+Disallow: /*.py$
+Disallow: /*.json$
+
+# Block known aggressive crawlers
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+Sitemap: https://viddeoxx.netlify.app/sitemap.xml

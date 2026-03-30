@@ -3,7 +3,7 @@ Innerflect — FastAPI backend
 Zero tracking. No IP storage. No sessions. Anonymous by design.
 """
 # ── Standard library ─────────────────────────────────────────────────────────
-import os, time, asyncpg, hashlib, secrets, json as _json
+import os, time, asyncio, asyncpg, hashlib, secrets, json as _json
 import hmac, logging
 import httpx
 from pathlib import Path
@@ -124,7 +124,40 @@ def _rcache_incr(key: str, ttl: int = 0) -> int | None:
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  3. DATABASE — asyncpg PostgreSQL connection pool
+#     Supports local PostgreSQL and Neon (cloud) out of the box.
+#     Neon detection: URL contains neon.tech OR sslmode=require param.
 # ═════════════════════════════════════════════════════════════════════════════
+import ssl as _ssl_module
+import re as _re
+
+def _parse_db_url(raw_url: str):
+    """Return (clean_url, pool_kwargs) ready for asyncpg.create_pool().
+    Strips sslmode from URL query string (asyncpg ignores it) and passes
+    an SSL context directly instead. Neon free tier limits: 10 connections."""
+    url = raw_url
+    kwargs: dict = {"min_size": 1, "max_size": 5}
+
+    is_neon = "neon.tech" in url
+    needs_ssl = is_neon or "sslmode=require" in url or "sslmode=verify-full" in url
+
+    # Strip sslmode param so asyncpg doesn't choke on unknown query params
+    url = _re.sub(r'[?&]sslmode=[^&]+', '', url)
+    url = _re.sub(r'\?$', '', url)  # clean trailing ?
+
+    if needs_ssl:
+        ctx = _ssl_module.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = _ssl_module.CERT_NONE  # Neon uses AWS intermediate certs
+        kwargs["ssl"] = ctx
+        if is_neon:
+            # Neon free: ~10 max connections; keep pool small to avoid exhaustion
+            kwargs["min_size"] = 1
+            kwargs["max_size"] = 3
+
+    return url, kwargs
+
+_DB_URL_CLEAN, _DB_POOL_KWARGS = _parse_db_url(DATABASE_URL)
+
 async def init_db(pool):
     async with pool.acquire() as con:
         await con.execute("""
@@ -289,7 +322,16 @@ limiter = Limiter(key_func=_anon_key)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _pool
-    _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
+    # Neon cold-start retry: first connection after auto-pause can take 1–3s
+    for attempt in range(3):
+        try:
+            _pool = await asyncpg.create_pool(_DB_URL_CLEAN, **_DB_POOL_KWARGS)
+            break
+        except Exception as exc:
+            if attempt == 2:
+                raise
+            logging.warning(f"DB connect attempt {attempt + 1} failed ({exc}), retrying in 2s…")
+            await asyncio.sleep(2)
     await init_db(_pool)
     # Clean up expired sessions, password reset tokens, and refresh tokens on startup
     now_ts = int(time.time())

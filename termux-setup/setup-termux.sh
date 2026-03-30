@@ -108,16 +108,17 @@ if ! pg_ctl -D "$PG_DATA" status >/dev/null 2>&1; then
 fi
 
 if pg_ctl -D "$PG_DATA" status >/dev/null 2>&1; then
-  # Create viddeoxx user + database (safe to re-run)
-  psql -c "CREATE USER viddeoxx WITH PASSWORD 'viddeoxx_dev';" 2>/dev/null || true
-  createdb -O viddeoxx viddeoxx 2>/dev/null || true
-  ok "PostgreSQL running — database 'viddeoxx' ready"
-  DB_URL="postgresql://viddeoxx:viddeoxx_dev@localhost:5432/viddeoxx"
+  # Create innerflect user + database (safe to re-run)
+  psql -c "CREATE USER innerflect WITH PASSWORD 'innerflect_dev';" 2>/dev/null || true
+  createdb -O innerflect innerflect 2>/dev/null || true
+  ok "PostgreSQL running — database 'innerflect' ready"
+  DB_URL="postgresql://innerflect:innerflect_dev@localhost:5432/innerflect"
   grep -q "^DATABASE_URL" "$ENV_FILE" 2>/dev/null \
     && sed -i "s|^DATABASE_URL=.*|DATABASE_URL=$DB_URL|" "$ENV_FILE" \
     || echo "DATABASE_URL=$DB_URL" >> "$ENV_FILE"
   # Run schema if tables don't exist yet
   psql "$DB_URL" -f "$SITE_DIR/api/schema.sql" 2>/dev/null && ok "Schema applied" || true
+  ok "Database URL: $DB_URL"
 else
   warn "PostgreSQL didn't start — check $SITE_DIR/logs/postgres.log"
 fi
@@ -294,10 +295,18 @@ echo -e "  ${C}vx${N}         → control panel"
 echo -e "  ${C}vx start${N}   → start all services"
 echo -e "  ${C}vx stop${N}    → stop all services"
 echo ""
-echo -e "  ${Y}Tips for 24/7 uptime:${N}"
-echo -e "  • Install ${B}Termux:Boot${N} from F-Droid & open it once"
-echo -e "  • Disable battery optimisation for Termux in Android Settings"
-echo -e "  • Keep device plugged in or on wireless charge"
+echo -e "  ${Y}━━━  24/7 Uptime — Required Steps  ━━━${N}"
+echo ""
+echo -e "  ${B}1)${N} Install ${C}Termux:Boot${N} from ${Y}F-Droid${N} (NOT Play Store)"
+echo -e "     Then open it once — that's all it needs"
+echo ""
+echo -e "  ${B}2)${N} Disable battery optimisation for Termux:"
+echo -e "     Android Settings → Apps → Termux → Battery → ${C}Unrestricted${N}"
+echo ""
+echo -e "  ${B}3)${N} Keep screen off but device plugged in, or use wireless charge"
+echo ""
+echo -e "  ${B}4)${N} Optional — install ${C}Termux:API${N} from F-Droid for wake lock:"
+echo -e "     ${DIM}pkg install termux-api && termux-wake-lock${N}"
 echo ""
 read -r -p "  Start Innerflect now? [y/N] " START
 [[ "$START" =~ ^[Yy]$ ]] && bash "$SITE_DIR/start.sh"

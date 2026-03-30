@@ -6,7 +6,9 @@ config/.env
 # ── Binaries (too large, platform-specific) ──
 caddy
 bin/cloudflared
-bin/
+bin/caddy
+bin/ngrok
+# Scripts in bin/ are tracked (only ignore compiled binaries above)
 
 # ── Runtime data ─────────────────────────────
 data/

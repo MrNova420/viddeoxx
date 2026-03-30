@@ -14,7 +14,24 @@ import { encryptMessages, decryptMessages } from '../utils/crypto'
 const API_BASE = () =>
   (typeof window !== 'undefined' && (window.API_BASE || window.INNERFLECT_API_BASE)) || ''
 
-const SYSTEM_PROMPT = `You are a compassionate, thoughtful AI therapy companion. You listen carefully, ask thoughtful follow-up questions, and provide gentle, evidence-based support. You never diagnose, never prescribe, and always encourage professional help when needed. You are warm, patient, and non-judgmental. Keep responses conversational and concise.`
+const SYSTEM_PROMPT = `You are Innerflect — a compassionate, perceptive AI companion built for therapy, self-reflection, and personal growth. People come to you to process thoughts, untangle emotions, work through life's challenges, and sometimes just to have someone really listen.
+
+Your approach:
+• Listen first. Reflect back what you hear before offering anything else — this shows you understood.
+• Ask one open, Socratic question at a time. Good questions unlock insight better than advice.
+• Validate emotions unconditionally before offering reframes or new perspectives.
+• Weave evidence-based techniques naturally — CBT thought-challenging, motivational interviewing, reflective listening, grounding, self-compassion practices — without labelling them clinically.
+• Track themes, patterns, and details from earlier in this conversation. Reference them naturally to show continuity ("You mentioned earlier that...", "This sounds connected to what you shared about...").
+• Match the person's energy: if they're blabbering and venting, receive it fully before asking anything. If they want direction, offer it gently.
+• Celebrate small wins. Normalise the messy, non-linear nature of growth.
+• Encourage healthy habits around emotional processing — not just problem-solving every time.
+
+Your limits:
+• Never diagnose, prescribe medication, or replace professional care. Always encourage professional help for persistent or serious concerns.
+• For any crisis signal (self-harm, suicidal ideation, abuse, danger) — immediately and warmly provide: National Crisis Hotline 988, Crisis Text Line (text HOME to 741741), and encourage professional support. Don't skip past this.
+• You are a supplement to human connection and professional care — not a replacement.
+
+Tone: Warm, curious, grounded, and real. Like a trusted friend with a therapist's awareness — not clinical, not preachy, not performatively positive. Honest when honesty helps. Responses are conversational and appropriately sized — a long vent deserves a full, present response; a simple check-in doesn't need an essay.`
 
 const MODEL_MAX_TOKENS = {
   'SmolLM2-135M-Instruct-q0f16-MLC': 256,
@@ -23,6 +40,45 @@ const MODEL_MAX_TOKENS = {
   'gemma-2-2b-it-q4f16_1-MLC': 448,
   'Phi-3.5-mini-instruct-q4f16_1-MLC': 512,
   'Phi-3.5-mini-instruct-q4f32_1-MLC': 512,
+}
+
+// Real context window sizes per model (in tokens)
+const MODEL_CONTEXT_WINDOW = {
+  'SmolLM2-135M-Instruct-q0f16-MLC':    2048,
+  'SmolLM2-360M-Instruct-q4f16_1-MLC':  2048,
+  'Llama-3.2-1B-Instruct-q4f16_1-MLC':  8192,
+  'gemma-2-2b-it-q4f16_1-MLC':          8192,
+  'Phi-3.5-mini-instruct-q4f16_1-MLC': 32768,
+  'Phi-3.5-mini-instruct-q4f32_1-MLC': 32768,
+}
+
+// Rough token estimate: ~4 chars per token + 4 per message for role overhead
+function estimateTokens(msgs) {
+  return msgs.reduce((s, m) => s + Math.ceil((m.content || '').length / 4) + 4, 0)
+}
+
+// Build smart context history that fits within the model's context window.
+// Injects session summary as a system addendum when older messages were trimmed.
+function buildContextHistory(allMessages, systemPrompt, sessionSummary, modelId) {
+  const contextWindow = MODEL_CONTEXT_WINDOW[modelId] || 4096
+  const maxOut = MODEL_MAX_TOKENS[modelId] || 384
+  const summaryNote = sessionSummary
+    ? `\n\n[Earlier conversation summary for continuity: ${sessionSummary}]`
+    : ''
+  const sysMsg = { role: 'system', content: systemPrompt + summaryNote }
+  // Budget: context window minus output space, system msg, and a safety margin
+  const budget = contextWindow - maxOut - estimateTokens([sysMsg]) - 64
+
+  // Walk backwards through messages, keeping what fits
+  const kept = []
+  let used = 0
+  for (let i = allMessages.length - 1; i >= 0; i--) {
+    const t = estimateTokens([allMessages[i]])
+    if (used + t > budget) break
+    kept.unshift(allMessages[i])
+    used += t
+  }
+  return [sysMsg, ...kept]
 }
 
 const LOADING_TIPS = [
@@ -496,6 +552,8 @@ export default function TherapySpace() {
   const [pendingModel, setPendingModel] = useState(null)
   const [upgradeReady, setUpgradeReady] = useState(null) // { engine, modelId } when bg model is ready
   const [messages, setMessages] = useState([])
+  const [sessionSummary, setSessionSummary] = useState('')
+  const [isSummarizing, setIsSummarizing] = useState(false)
   const [input, setInput] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [canStop, setCanStop] = useState(false)
@@ -517,6 +575,7 @@ export default function TherapySpace() {
   const lastBytesRef = useRef({ bytes: 0, time: Date.now() })
   const latestMessagesRef = useRef([]) // always current — used for auto-save
   const prevGeneratingRef = useRef(false) // tracks isGenerating transitions
+  const isSummarizingRef  = useRef(false) // prevents concurrent summarization runs
 
   const {
     plan,
@@ -605,10 +664,48 @@ export default function TherapySpace() {
     } catch { /* silent — never interrupt the user */ }
   }
 
-  // Trigger auto-save when generation transitions from active → complete
+  // Background context summarization — fires when we've used >65% of the context window.
+  // Uses the loaded model to silently summarize the oldest 40% of messages so newer
+  // conversation stays fully in context. Non-blocking, never interrupts generation.
+  async function _maybeSummarize(msgs, engine) {
+    if (!engine || isSummarizingRef.current || msgs.length < 6) return
+    const contextWindow = MODEL_CONTEXT_WINDOW[activeModel] || 4096
+    const maxOut = MODEL_MAX_TOKENS[activeModel] || 384
+    const usable = contextWindow - maxOut - 128
+    const totalTokens = estimateTokens(msgs)
+    if (totalTokens < usable * 0.65) return // plenty of room — skip
+
+    isSummarizingRef.current = true
+    setIsSummarizing(true)
+    try {
+      // Summarize the oldest 40% of messages (the part closest to being evicted)
+      const cutoff = Math.floor(msgs.length * 0.4)
+      const toSummarize = msgs.slice(0, cutoff)
+      const summaryPrompt = [
+        { role: 'system', content: 'You are a concise summarizer. Summarize the key themes, emotions, and topics from this therapy conversation in 3-5 sentences. Focus on what the person shared about themselves — their feelings, struggles, breakthroughs, and goals. Be warm and specific so the summary can be used to maintain continuity.' },
+        ...toSummarize,
+        { role: 'user', content: 'Please summarize the conversation above.' },
+      ]
+      const result = await engine.chat.completions.create({
+        messages: summaryPrompt,
+        stream: false,
+        temperature: 0.3,
+        max_tokens: 200,
+      })
+      const newSummary = result.choices[0]?.message?.content?.trim()
+      if (newSummary) setSessionSummary(newSummary)
+    } catch { /* silent — summarization is best-effort */ }
+    finally {
+      isSummarizingRef.current = false
+      setIsSummarizing(false)
+    }
+  }
+
+  // Trigger auto-save + context summarization when generation transitions active → complete
   useEffect(() => {
-    if (prevGeneratingRef.current && !isGenerating && autoSaveEnabled && latestMessagesRef.current.length > 1) {
-      _autoSave(latestMessagesRef.current)
+    if (prevGeneratingRef.current && !isGenerating && latestMessagesRef.current.length > 1) {
+      if (autoSaveEnabled) _autoSave(latestMessagesRef.current)
+      _maybeSummarize(latestMessagesRef.current, engineRef.current)
     }
     prevGeneratingRef.current = isGenerating
   })
@@ -878,12 +975,12 @@ export default function TherapySpace() {
     }
     if (!engine) return
     const userMsg = { role: 'user', content: input.trim() }
-    const MAX_HISTORY = 12
-    const history = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages.slice(-MAX_HISTORY),
-      userMsg
-    ]
+    const history = buildContextHistory(
+      [...messages, userMsg],
+      SYSTEM_PROMPT,
+      sessionSummary,
+      activeModel
+    )
     setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '' }])
     setInput('')
     setIsGenerating(true)
@@ -1213,6 +1310,17 @@ export default function TherapySpace() {
                 >
                   ↑
                 </motion.button>
+                {isSummarizing && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}
+                  >
+                    <span style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>📝</span>
+                    Condensing context…
+                  </motion.div>
+                )}
                 {isGenerating && canStop && (
                   <motion.button
                     initial={{ opacity: 0, scale: 0.85 }}

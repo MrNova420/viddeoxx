@@ -286,6 +286,10 @@ async def init_db(pool):
         await con.execute(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'"
         )
+        # Add last_accessed_at to chat_history for 30-day cleanup logic
+        await con.execute(
+            "ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS last_accessed_at BIGINT DEFAULT NULL"
+        )
         existing = await con.fetchval(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name='contacts' AND column_name='reply_via'"
@@ -333,11 +337,20 @@ async def lifespan(app: FastAPI):
             logging.warning(f"DB connect attempt {attempt + 1} failed ({exc}), retrying in 2s…")
             await asyncio.sleep(2)
     await init_db(_pool)
-    # Clean up expired sessions, password reset tokens, and refresh tokens on startup
+    # Clean up expired tokens and stale chat sessions on startup
     now_ts = int(time.time())
+    thirty_days_ago = now_ts - (30 * 24 * 3600)
     async with _pool.acquire() as conn:
         await conn.execute("DELETE FROM password_resets WHERE expires_at < $1", now_ts)
         await conn.execute("DELETE FROM refresh_tokens WHERE expires_at < $1", now_ts)
+        # Auto-delete chat sessions not accessed in 30 days (smart storage management)
+        try:
+            await conn.execute(
+                "DELETE FROM chat_history WHERE GREATEST(updated_at, COALESCE(last_accessed_at, updated_at)) < $1",
+                thirty_days_ago
+            )
+        except Exception:
+            pass  # last_accessed_at may not exist yet on first run — migration handles it
     yield
     if _pool:
         await _pool.close()
@@ -955,11 +968,18 @@ async def get_chat_session(session_id: str, request: Request):
     user = await _get_current_user(request)
     if not user or user["plan"] != "pro":
         raise HTTPException(403, "Pro plan required")
+    now = int(datetime.now(timezone.utc).timestamp())
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT * FROM chat_history WHERE session_id=$1 AND user_id=$2",
             session_id, user["id"]
         )
+        if row:
+            # Track last access time for 30-day cleanup
+            await conn.execute(
+                "UPDATE chat_history SET last_accessed_at=$1 WHERE session_id=$2 AND user_id=$3",
+                now, session_id, user["id"]
+            )
     if not row:
         raise HTTPException(404, "Session not found")
     return dict(row)

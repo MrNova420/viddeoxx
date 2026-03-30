@@ -98,14 +98,15 @@ CREATE TABLE IF NOT EXISTS password_resets (
 -- Content is AES-256-GCM encrypted client-side. Server sees only ciphertext.
 -- therapy_sessions table is NOT used — AI conversations never leave the browser.
 CREATE TABLE IF NOT EXISTS chat_history (
-    id         BIGSERIAL PRIMARY KEY,
-    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    session_id TEXT NOT NULL DEFAULT gen_random_uuid()::TEXT,
-    title      TEXT NOT NULL DEFAULT 'Chat Session',
-    messages   JSONB NOT NULL DEFAULT '[]',
-    model      TEXT DEFAULT '',
-    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
-    updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+    id               BIGSERIAL PRIMARY KEY,
+    user_id          BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id       TEXT NOT NULL DEFAULT gen_random_uuid()::TEXT,
+    title            TEXT NOT NULL DEFAULT 'Chat Session',
+    messages         JSONB NOT NULL DEFAULT '[]',
+    model            TEXT DEFAULT '',
+    created_at       BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+    updated_at       BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT,
+    last_accessed_at BIGINT DEFAULT NULL  -- tracks last open; sessions idle 30d are auto-deleted
 );
 CREATE INDEX IF NOT EXISTS idx_chat_user ON chat_history(user_id, created_at DESC);
 
@@ -132,6 +133,9 @@ CREATE TABLE IF NOT EXISTS anon_daily_usage (
 
 -- Add preferences column if upgrading from older schema
 ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}';
+
+-- Add last_accessed_at for 30-day auto-cleanup (sessions idle >30 days are deleted on startup)
+ALTER TABLE chat_history ADD COLUMN IF NOT EXISTS last_accessed_at BIGINT DEFAULT NULL;
 
 -- Remove PII columns from contacts if they exist (old schema cleanup)
 ALTER TABLE contacts DROP COLUMN IF EXISTS email;

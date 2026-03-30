@@ -385,7 +385,7 @@ function TypingIndicator() {
   )
 }
 
-function ChatHistoryDrawer({ open, onClose, authFetch, encKey, setMessages, setSessionId, currentSessionId, onNewChat }) {
+function ChatHistoryDrawer({ open, onClose, authFetch, encKey, setMessages, setSessionId, currentSessionId, onNewChat, onLoadSession }) {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -413,6 +413,8 @@ function ChatHistoryDrawer({ open, onClose, authFetch, encKey, setMessages, setS
       const msgs = await decryptMessages(encKey, data.messages)
       setMessages(msgs)
       setSessionId(session_id)
+      // Notify parent so it can restore model context for this session
+      if (onLoadSession) onLoadSession(msgs, data.model, session_id)
       onClose()
     } catch { /* silent */ } finally { setLoadingSessionId(null) }
   }
@@ -641,20 +643,22 @@ export default function TherapySpace() {
 
   // ─── Auto-compact: persist context to localStorage per model ──────────────
   // Saves summary + recent messages so context survives page refresh / model reload.
-  const COMPACT_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+  // 30-day TTL on compact — users should always be able to resume where they left off
+  const COMPACT_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
   function _compactKey(modelId) {
     return `innerflect_compact_${(modelId || 'default').replace(/[^a-z0-9]/gi, '_')}`
   }
 
-  function _saveCompact(msgs, summary, modelId) {
+  function _saveCompact(msgs, summary, modelId, sid) {
     if (!msgs || msgs.length < 2) return
     try {
       const payload = {
-        v: 1,
+        v: 2,
         modelId,
+        sessionId: sid || null,
         summary,
-        recentMessages: msgs.filter(m => m.role !== 'system').slice(-8),
+        recentMessages: msgs.filter(m => m.role !== 'system').slice(-16),
         messageCount: msgs.length,
         savedAt: Date.now(),
       }
@@ -667,6 +671,7 @@ export default function TherapySpace() {
       const raw = localStorage.getItem(_compactKey(modelId))
       if (!raw) return null
       const data = JSON.parse(raw)
+      // Reject only truly ancient compacts (30 days) — never shorter
       if (!data.v || Date.now() - data.savedAt > COMPACT_TTL_MS) {
         localStorage.removeItem(_compactKey(modelId))
         return null
@@ -738,7 +743,7 @@ export default function TherapySpace() {
       if (newSummary) {
         setSessionSummary(newSummary)
         // Persist compact immediately after summarization with fresh summary
-        _saveCompact(latestMessagesRef.current, newSummary, activeModel)
+        _saveCompact(latestMessagesRef.current, newSummary, activeModel, sessionId)
       }
     } catch { /* silent — summarization is best-effort */ }
     finally {
@@ -753,7 +758,7 @@ export default function TherapySpace() {
       if (autoSaveEnabled) _autoSave(latestMessagesRef.current)
       _maybeSummarize(latestMessagesRef.current, engineRef.current)
       // Always persist compact so context survives refresh / model reload
-      _saveCompact(latestMessagesRef.current, sessionSummary, activeModel)
+      _saveCompact(latestMessagesRef.current, sessionSummary, activeModel, sessionId)
     }
     prevGeneratingRef.current = isGenerating
   })
@@ -914,6 +919,7 @@ export default function TherapySpace() {
     if (compact && compact.recentMessages?.length > 0) {
       setSessionSummary(compact.summary || '')
       setMessages(compact.recentMessages)
+      if (compact.sessionId) setSessionId(compact.sessionId)
       setContextRestored(true)
       setTimeout(() => setContextRestored(false), 4000)
     } else {
@@ -1439,6 +1445,20 @@ export default function TherapySpace() {
         onNewChat={() => {
           setSessionSummary('')
           _clearCompact(activeModel)
+        }}
+        onLoadSession={(msgs, sessionModel, sid) => {
+          // Clear summary — will be rebuilt by context manager as needed
+          setSessionSummary('')
+          // Save loaded session as compact for that model so it persists across reloads
+          if (sessionModel) _saveCompact(msgs, '', sessionModel, sid)
+          // If session used a different model, show a note in chat
+          if (sessionModel && sessionModel !== activeModel) {
+            const modelLabel = MODELS.find(m => m.id === sessionModel)?.label || sessionModel
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: `_This session was originally with **${modelLabel}**. You're currently using a different model — responses may vary slightly in style._`,
+            }])
+          }
         }}
       />
 

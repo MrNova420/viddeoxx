@@ -452,3 +452,36 @@ This is normal — it means the conversation is getting long and Innerflect is s
 Refresh tokens last 90 days. If a user gets logged out unexpectedly:
 - They can simply log back in
 - Check `bin/check-expiry.sh` for how many tokens are expiring soon
+
+---
+
+## Model Strategy & Roadmap {#model-strategy}
+
+### Current model lineup
+
+Innerflect prioritizes lightweight models that run entirely in-browser via WebGPU — no data leaves the device:
+
+| Model | Download | VRAM | Best for |
+|-------|----------|------|----------|
+| SmolLM2 135M | ~270 MB | 360 MB | Ultra-low-end devices, instant load |
+| SmolLM2 360M | ~360 MB | 376 MB | Very light devices, quick sessions |
+| Llama 3.2 1B | ~700 MB | 879 MB | **Default sweet spot** — any WebGPU device |
+| SmolLM2 1.7B | ~1.1 GB | 1.7 GB | Step-up quality, still compact |
+| Gemma 2 2B | ~1.3 GB | 1.9 GB | Nuanced reasoning on capable hardware |
+| Phi-3.5-mini | ~2.3 GB | 3.7 GB | Best therapy quality, 4GB+ GPU required |
+
+The primary focus is the **200–700 MB tier**. The goal: make the lightest models as warm and responsive as possible so every device — including older phones — gets a genuinely helpful experience.
+
+### Fine-tuning / custom model (future)
+
+**Goal (noted for future development):** Slowly fine-tune a custom Innerflect model in the 200–700 MB range that is deeply specialized for therapeutic conversation — not a general-purpose assistant.
+
+Approach when implemented:
+1. Curate a therapy-focused dataset: MI dialogue examples, reflective listening patterns, CBT/ACT techniques, safe crisis responses.
+2. Fine-tune a lightweight base (SmolLM2-360M or Llama 1B) using LoRA/QLoRA for minimal compute cost.
+3. Quantize to q4f16 for WebLLM compatibility and upload to HuggingFace as an MLC-compiled model.
+4. Users download and load it locally — just like the prebuilt models today.
+
+**Why this matters:** Even the smallest model, trained specifically on therapeutic dialogue patterns, will outperform a larger general model for this use case. The focus is quality-per-MB, not raw parameter count.
+
+This is tracked as a future milestone. The infrastructure (WebLLM, model picker, context management) is already built to support custom model IDs without any code changes.

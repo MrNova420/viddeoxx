@@ -20,8 +20,8 @@ export const MODELS = [
     label: 'SmolLM2 135M',
     size: '~270 MB',
     sizeMB: 270,
-    desc: 'Tiny — instant on modern GPUs. Great for a quick chat.',
-    badge: '⚡ Quickest',
+    desc: 'Ultra-light — loads in seconds. Best for very limited devices or a quick check-in.',
+    badge: '⚡ Lightest',
     minRam: 0,
     gpuTier: 0,
     requiresF16: true,
@@ -31,7 +31,7 @@ export const MODELS = [
     label: 'SmolLM2 360M',
     size: '~360 MB',
     sizeMB: 360,
-    desc: 'Very fast on modern GPUs. Good for quick chats.',
+    desc: 'Very lightweight. Loads fast — good step-up from 135M for richer responses.',
     badge: '⚡ Instant',
     minRam: 1,
     gpuTier: 0,
@@ -42,18 +42,29 @@ export const MODELS = [
     label: 'Llama 3.2 1B',
     size: '~700 MB',
     sizeMB: 700,
-    desc: 'Fast and capable. Works on any WebGPU device.',
-    badge: '🚀 Fast',
+    desc: 'The sweet spot — fast, capable, works on any WebGPU device. Best default choice.',
+    badge: '🚀 Recommended',
     minRam: 2,
     gpuTier: 1,
     requiresF16: false,
+  },
+  {
+    id: 'SmolLM2-1.7B-Instruct-q4f16_1-MLC',
+    label: 'SmolLM2 1.7B',
+    size: '~1.1 GB',
+    sizeMB: 1100,
+    desc: 'Noticeably sharper responses, still compact. Great step-up for deeper conversations.',
+    badge: '💡 Sharp',
+    minRam: 3,
+    gpuTier: 2,
+    requiresF16: true,
   },
   {
     id: 'gemma-2-2b-it-q4f16_1-MLC',
     label: 'Gemma 2 2B',
     size: '~1.3 GB',
     sizeMB: 1300,
-    desc: "Google's Gemma — strong empathy and reasoning for its size.",
+    desc: "Google's Gemma — strong empathy and nuanced reasoning for its size.",
     badge: '💎 Balanced',
     minRam: 4,
     gpuTier: 2,
@@ -64,7 +75,7 @@ export const MODELS = [
     label: 'Phi-3.5-mini',
     size: '~2.3 GB',
     sizeMB: 2300,
-    desc: 'Best therapy quality. Works on any WebGPU device with 4GB+ GPU.',
+    desc: 'Best therapy quality. Needs 4GB+ GPU — richest, most aware conversations.',
     badge: '⭐ Best',
     minRam: 6,
     gpuTier: 3,
@@ -72,7 +83,7 @@ export const MODELS = [
   },
 ]
 
-export const DEFAULT_MODEL_ID = MODELS[4].id // Phi-3.5-mini
+export const DEFAULT_MODEL_ID = 'Phi-3.5-mini-instruct-q4f16_1-MLC'
 export const STORAGE_KEY = 'innerflect_model_id'
 
 // Migration: rename old viddeoxx_ keys to innerflect_ (one-time, preserves user preference)

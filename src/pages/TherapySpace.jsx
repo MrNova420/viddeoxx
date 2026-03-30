@@ -15,7 +15,7 @@ const API_BASE = () =>
   (typeof window !== 'undefined' && (window.API_BASE || window.INNERFLECT_API_BASE)) || ''
 
 // ─── Therapy System Prompt ────────────────────────────────────────────────────
-// Full prompt for capable models (Llama 1B+, Gemma, Phi)
+// Full prompt for capable models (Llama 1B+, SmolLM2 1.7B, Gemma, Phi)
 const SYSTEM_PROMPT = `You are Innerflect — a warm, perceptive AI companion for therapy, emotional processing, and self-reflection. People come to you to untangle feelings, work through life's challenges, vent, think out loud, or just have someone genuinely listen.
 
 RESPONSE FORMAT — follow this exactly:
@@ -55,7 +55,7 @@ HARD LIMITS:
 
 Your voice is: warm, curious, honest, grounded. Like a trusted friend who happens to have a therapist's awareness — not clinical, not preachy, not relentlessly positive. Say hard things gently when it helps. Hold space without filling every silence with advice.`
 
-// Shorter prompt for small models (SmolLM 135M/360M) that can't follow long instructions
+// Compact prompt for SmolLM2-360M — follows a focused instruction set reliably
 const SYSTEM_PROMPT_SHORT = `You are Innerflect, a warm and caring AI companion for emotional support and reflection.
 
 Listen carefully. Validate feelings before offering anything else. Ask one open question at a time. Be conversational and kind — never clinical. Write short, natural paragraphs. No bullet points or lists.
@@ -64,18 +64,24 @@ If someone mentions self-harm or crisis, provide: 988 Lifeline (call/text 988) o
 
 Be like a caring friend who really listens. Warm, honest, present.`
 
+// Minimal prompt for SmolLM2-135M — very small models need ultra-short instructions
+const SYSTEM_PROMPT_TINY = `You are Innerflect, a kind listener and emotional support companion.
+Listen. Validate feelings. Ask one gentle question. Keep responses warm and brief.
+If the user mentions self-harm or crisis: "Please reach out to the 988 Lifeline (call or text 988)."`
+
 function getSystemPrompt(modelId) {
-  const isSmall = modelId?.includes('SmolLM2-135M') || modelId?.includes('SmolLM2-360M')
-  return isSmall ? SYSTEM_PROMPT_SHORT : SYSTEM_PROMPT
+  if (modelId?.includes('SmolLM2-135M')) return SYSTEM_PROMPT_TINY
+  if (modelId?.includes('SmolLM2-360M')) return SYSTEM_PROMPT_SHORT
+  return SYSTEM_PROMPT
 }
 
 // Per-model inference parameters tuned for therapy conversation quality
 function getInferenceParams(modelId) {
-  const isSmall = modelId?.includes('SmolLM2-135M') || modelId?.includes('SmolLM2-360M')
-  const isMid   = modelId?.includes('Llama') || modelId?.includes('gemma')
-  if (isSmall) return { temperature: 0.7, top_p: 0.85, repetition_penalty: 1.15 }
-  if (isMid)   return { temperature: 0.82, top_p: 0.92, repetition_penalty: 1.1  }
-  /* Phi-3.5 */return { temperature: 0.88, top_p: 0.95, repetition_penalty: 1.05 }
+  if (modelId?.includes('SmolLM2-135M')) return { temperature: 0.65, top_p: 0.82, repetition_penalty: 1.2  }
+  if (modelId?.includes('SmolLM2-360M')) return { temperature: 0.70, top_p: 0.85, repetition_penalty: 1.15 }
+  if (modelId?.includes('SmolLM2-1.7B')) return { temperature: 0.80, top_p: 0.90, repetition_penalty: 1.12 }
+  if (modelId?.includes('Llama') || modelId?.includes('gemma')) return { temperature: 0.82, top_p: 0.92, repetition_penalty: 1.1  }
+  /* Phi-3.5 */                                                  return { temperature: 0.88, top_p: 0.95, repetition_penalty: 1.05 }
 }
 
 // Conversation starter prompts shown when the session is fresh
@@ -89,22 +95,24 @@ const CONVERSATION_STARTERS = [
 ]
 
 const MODEL_MAX_TOKENS = {
-  'SmolLM2-135M-Instruct-q0f16-MLC': 256,
-  'SmolLM2-360M-Instruct-q4f16_1-MLC': 256,
-  'Llama-3.2-1B-Instruct-q4f16_1-MLC': 384,
-  'gemma-2-2b-it-q4f16_1-MLC': 448,
-  'Phi-3.5-mini-instruct-q4f16_1-MLC': 512,
-  'Phi-3.5-mini-instruct-q4f32_1-MLC': 512,
+  'SmolLM2-135M-Instruct-q0f16-MLC':       192, // kept shorter — prevents rambling at this tiny scale
+  'SmolLM2-360M-Instruct-q4f16_1-MLC':     256,
+  'SmolLM2-1.7B-Instruct-q4f16_1-MLC':     384,
+  'Llama-3.2-1B-Instruct-q4f16_1-MLC':     384,
+  'gemma-2-2b-it-q4f16_1-MLC':             448,
+  'Phi-3.5-mini-instruct-q4f16_1-MLC':     512,
+  'Phi-3.5-mini-instruct-q4f32_1-MLC':     512,
 }
 
-// Real context window sizes per model (in tokens)
+// Real context window sizes per model (per WebLLM prebuilt config)
 const MODEL_CONTEXT_WINDOW = {
-  'SmolLM2-135M-Instruct-q0f16-MLC':    2048,
-  'SmolLM2-360M-Instruct-q4f16_1-MLC':  2048,
-  'Llama-3.2-1B-Instruct-q4f16_1-MLC':  8192,
-  'gemma-2-2b-it-q4f16_1-MLC':          8192,
-  'Phi-3.5-mini-instruct-q4f16_1-MLC': 32768,
-  'Phi-3.5-mini-instruct-q4f32_1-MLC': 32768,
+  'SmolLM2-135M-Instruct-q0f16-MLC':       4096, // WebLLM reports 4096, not 2048
+  'SmolLM2-360M-Instruct-q4f16_1-MLC':     4096, // WebLLM reports 4096, not 2048
+  'SmolLM2-1.7B-Instruct-q4f16_1-MLC':     8192,
+  'Llama-3.2-1B-Instruct-q4f16_1-MLC':     8192,
+  'gemma-2-2b-it-q4f16_1-MLC':             8192,
+  'Phi-3.5-mini-instruct-q4f16_1-MLC':    32768,
+  'Phi-3.5-mini-instruct-q4f32_1-MLC':    32768,
 }
 
 // Rough token estimate: ~4 chars per token + 4 per message for role overhead

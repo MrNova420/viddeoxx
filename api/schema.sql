@@ -1,15 +1,26 @@
--- viddeoxx PostgreSQL schema
--- Run once: psql viddeoxx < api/schema.sql
--- Or applied automatically by FastAPI on startup
+-- ═════════════════════════════════════════════════════════════════════════════
+--  Innerflect — PostgreSQL Schema
+--  Authoritative schema matching api/main.py init_db()
+--
+--  Run once:  psql innerflect < api/schema.sql
+--  Or:        DATABASE_URL=... python3 -c "import asyncio; from api.main import init_db, _pool; ..."
+--  Note: FastAPI runs this automatically on startup via init_db()
+-- ═════════════════════════════════════════════════════════════════════════════
 
+-- Enable UUID generation (required for chat_history.session_id)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- ── Contacts ──────────────────────────────────────────────────────────────────
+-- Contact form submissions. PII (email, IP) intentionally NOT stored.
 CREATE TABLE IF NOT EXISTS contacts (
     id        BIGSERIAL PRIMARY KEY,
     name      TEXT NOT NULL,
     message   TEXT NOT NULL,
     reply_via TEXT DEFAULT '',
-    created   BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+    created   BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)
 );
 
+-- ── Page Analytics ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pageviews (
     path  TEXT NOT NULL,
     day   DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -17,42 +28,30 @@ CREATE TABLE IF NOT EXISTS pageviews (
     PRIMARY KEY (path, day)
 );
 
-CREATE TABLE IF NOT EXISTS therapy_sessions (
-    id         BIGSERIAL PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    role       TEXT NOT NULL CHECK(role IN ('user','assistant')),
-    content    TEXT NOT NULL,
-    model      TEXT DEFAULT '',
-    created    BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
-);
-
-CREATE INDEX IF NOT EXISTS idx_ts_session ON therapy_sessions(session_id, created);
-
+-- ── Performance Metrics ───────────────────────────────────────────────────────
+-- user_agent intentionally NOT stored (privacy promise)
 CREATE TABLE IF NOT EXISTS perf_metrics (
-    id         BIGSERIAL PRIMARY KEY,
-    path       TEXT NOT NULL,
-    load_time  INTEGER NOT NULL,
-    ttfb       INTEGER,
-    user_agent TEXT,
-    timestamp  BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+    id          BIGSERIAL PRIMARY KEY,
+    path        TEXT NOT NULL,
+    load_time   INTEGER NOT NULL,
+    ttfb        INTEGER,
+    "timestamp" BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)
 );
+CREATE INDEX IF NOT EXISTS idx_perf_path ON perf_metrics(path, "timestamp");
+CREATE INDEX IF NOT EXISTS idx_perf_time ON perf_metrics("timestamp");
 
-CREATE INDEX IF NOT EXISTS idx_perf_path ON perf_metrics(path, timestamp);
-CREATE INDEX IF NOT EXISTS idx_perf_time ON perf_metrics(timestamp);
-
+-- ── Ad / Slayer Events ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS slayer_events (
-    id        BIGSERIAL PRIMARY KEY,
-    event     TEXT NOT NULL CHECK(event IN ('impression','click')),
-    ad_id     TEXT NOT NULL,
-    page      TEXT NOT NULL DEFAULT '/',
-    timestamp BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+    id          BIGSERIAL PRIMARY KEY,
+    event       TEXT NOT NULL CHECK(event IN ('impression','click')),
+    ad_id       TEXT NOT NULL,
+    page        TEXT NOT NULL DEFAULT '/',
+    "timestamp" BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)
 );
-
 CREATE INDEX IF NOT EXISTS idx_slayer_ad  ON slayer_events(ad_id, event);
-CREATE INDEX IF NOT EXISTS idx_slayer_day ON slayer_events(timestamp, event);
+CREATE INDEX IF NOT EXISTS idx_slayer_day ON slayer_events("timestamp", event);
 
--- ── Auth + Freemium ───────────────────────────────────────────────────────────
-
+-- ── Users ─────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
     id            BIGSERIAL PRIMARY KEY,
     email         TEXT UNIQUE,
@@ -61,11 +60,13 @@ CREATE TABLE IF NOT EXISTS users (
     name          TEXT NOT NULL DEFAULT 'User',
     avatar_url    TEXT DEFAULT '',
     plan          TEXT NOT NULL DEFAULT 'free' CHECK(plan IN ('free','pro')),
+    preferences   JSONB DEFAULT '{}',
     created_at    BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
 );
 CREATE INDEX IF NOT EXISTS idx_users_email  ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_google ON users(google_id);
 
+-- ── Legacy Session Tokens (replaced by refresh_tokens) ────────────────────────
 CREATE TABLE IF NOT EXISTS user_sessions (
     token      TEXT PRIMARY KEY,
     user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -74,6 +75,28 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_user_sessions_uid ON user_sessions(user_id);
 
+-- ── Refresh Tokens (JWT rotation) ─────────────────────────────────────────────
+-- Opaque 90-day tokens. Rotated on each use. Revoked on logout.
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    token      TEXT PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at BIGINT NOT NULL,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+);
+CREATE INDEX IF NOT EXISTS idx_rt_user ON refresh_tokens(user_id);
+
+-- ── Password Reset Tokens ─────────────────────────────────────────────────────
+-- Ephemeral 1-hour tokens, consumed on use.
+CREATE TABLE IF NOT EXISTS password_resets (
+    token      TEXT PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at BIGINT NOT NULL,
+    created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+);
+
+-- ── Chat History (Pro users only, E2E encrypted) ──────────────────────────────
+-- Content is AES-256-GCM encrypted client-side. Server sees only ciphertext.
+-- therapy_sessions table is NOT used — AI conversations never leave the browser.
 CREATE TABLE IF NOT EXISTS chat_history (
     id         BIGSERIAL PRIMARY KEY,
     user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -86,6 +109,8 @@ CREATE TABLE IF NOT EXISTS chat_history (
 );
 CREATE INDEX IF NOT EXISTS idx_chat_user ON chat_history(user_id, created_at DESC);
 
+-- ── Usage Tracking ────────────────────────────────────────────────────────────
+-- Per-user daily session minutes (logged-in users)
 CREATE TABLE IF NOT EXISTS daily_usage (
     user_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     day          DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -93,9 +118,22 @@ CREATE TABLE IF NOT EXISTS daily_usage (
     PRIMARY KEY (user_id, day)
 );
 
+-- Per-fingerprint daily usage (anonymous users — fingerprint only, no PII)
 CREATE TABLE IF NOT EXISTS anon_daily_usage (
     fingerprint  TEXT NOT NULL,
     day          DATE NOT NULL DEFAULT CURRENT_DATE,
     minutes_used INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (fingerprint, day)
 );
+
+-- ═════════════════════════════════════════════════════════════════════════════
+--  Idempotent migrations (safe to re-run)
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Add preferences column if upgrading from older schema
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}';
+
+-- Remove PII columns from contacts if they exist (old schema cleanup)
+ALTER TABLE contacts DROP COLUMN IF EXISTS email;
+ALTER TABLE contacts DROP COLUMN IF EXISTS ip;
+

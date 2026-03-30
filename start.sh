@@ -57,7 +57,7 @@ if [ -z "$DATABASE_URL" ]; then
     export DATABASE_URL=$(grep "^DATABASE_URL" "$SITE_DIR/config/.env" | cut -d= -f2-)
   else
     # Default local dev URL
-    export DATABASE_URL="postgresql://viddeoxx:viddeoxx_dev@localhost:5432/viddeoxx"
+    export DATABASE_URL="postgresql://innerflect:innerflect_dev@localhost:5432/innerflect"
     echo "[innerflect] ℹ Using default DATABASE_URL (localhost)"
   fi
 fi

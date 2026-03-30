@@ -385,7 +385,7 @@ function TypingIndicator() {
   )
 }
 
-function ChatHistoryDrawer({ open, onClose, authFetch, encKey, setMessages, setSessionId, currentSessionId }) {
+function ChatHistoryDrawer({ open, onClose, authFetch, encKey, setMessages, setSessionId, currentSessionId, onNewChat }) {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -429,6 +429,7 @@ function ChatHistoryDrawer({ open, onClose, authFetch, encKey, setMessages, setS
   function newChat() {
     setMessages([])
     setSessionId(null)
+    if (onNewChat) onNewChat()
     onClose()
   }
 
@@ -554,6 +555,7 @@ export default function TherapySpace() {
   const [messages, setMessages] = useState([])
   const [sessionSummary, setSessionSummary] = useState('')
   const [isSummarizing, setIsSummarizing] = useState(false)
+  const [contextRestored, setContextRestored] = useState(false)
   const [input, setInput] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [canStop, setCanStop] = useState(false)
@@ -637,6 +639,46 @@ export default function TherapySpace() {
   // Keep latestMessagesRef in sync so _autoSave can access current messages
   useEffect(() => { latestMessagesRef.current = messages }, [messages])
 
+  // ─── Auto-compact: persist context to localStorage per model ──────────────
+  // Saves summary + recent messages so context survives page refresh / model reload.
+  const COMPACT_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+  function _compactKey(modelId) {
+    return `innerflect_compact_${(modelId || 'default').replace(/[^a-z0-9]/gi, '_')}`
+  }
+
+  function _saveCompact(msgs, summary, modelId) {
+    if (!msgs || msgs.length < 2) return
+    try {
+      const payload = {
+        v: 1,
+        modelId,
+        summary,
+        recentMessages: msgs.filter(m => m.role !== 'system').slice(-8),
+        messageCount: msgs.length,
+        savedAt: Date.now(),
+      }
+      localStorage.setItem(_compactKey(modelId), JSON.stringify(payload))
+    } catch { /* storage full — ignore */ }
+  }
+
+  function _loadCompact(modelId) {
+    try {
+      const raw = localStorage.getItem(_compactKey(modelId))
+      if (!raw) return null
+      const data = JSON.parse(raw)
+      if (!data.v || Date.now() - data.savedAt > COMPACT_TTL_MS) {
+        localStorage.removeItem(_compactKey(modelId))
+        return null
+      }
+      return data
+    } catch { return null }
+  }
+
+  function _clearCompact(modelId) {
+    try { localStorage.removeItem(_compactKey(modelId)) } catch { /* ignore */ }
+  }
+
   function _generateTitle(msgs) {
     const first = msgs.find(m => m.role === 'user')
     if (!first?.content) return 'Chat Session'
@@ -693,7 +735,11 @@ export default function TherapySpace() {
         max_tokens: 200,
       })
       const newSummary = result.choices[0]?.message?.content?.trim()
-      if (newSummary) setSessionSummary(newSummary)
+      if (newSummary) {
+        setSessionSummary(newSummary)
+        // Persist compact immediately after summarization with fresh summary
+        _saveCompact(latestMessagesRef.current, newSummary, activeModel)
+      }
     } catch { /* silent — summarization is best-effort */ }
     finally {
       isSummarizingRef.current = false
@@ -706,6 +752,8 @@ export default function TherapySpace() {
     if (prevGeneratingRef.current && !isGenerating && latestMessagesRef.current.length > 1) {
       if (autoSaveEnabled) _autoSave(latestMessagesRef.current)
       _maybeSummarize(latestMessagesRef.current, engineRef.current)
+      // Always persist compact so context survives refresh / model reload
+      _saveCompact(latestMessagesRef.current, sessionSummary, activeModel)
     }
     prevGeneratingRef.current = isGenerating
   })
@@ -860,12 +908,22 @@ export default function TherapySpace() {
     engineRef.current = eng
     setEngine(eng)
     setIsReady(true)
-    setMessages([{
-      role: 'assistant',
-      content: isQuick
-        ? "Hello 👋 I'm here and ready to listen. A better AI model is loading in the background — I'll let you know when it's ready to give you even richer responses."
-        : "Hello 👋 I'm your private AI companion. I'm here to listen — no judgments, no records, just a safe space to talk. What's on your mind today?"
-    }])
+
+    // Restore compact context if available (context saved before page refresh / model reload)
+    const compact = _loadCompact(modelId)
+    if (compact && compact.recentMessages?.length > 0) {
+      setSessionSummary(compact.summary || '')
+      setMessages(compact.recentMessages)
+      setContextRestored(true)
+      setTimeout(() => setContextRestored(false), 4000)
+    } else {
+      setMessages([{
+        role: 'assistant',
+        content: isQuick
+          ? "Hello 👋 I'm here and ready to listen. A better AI model is loading in the background — I'll let you know when it's ready to give you even richer responses."
+          : "Hello 👋 I'm your private AI companion. I'm here to listen — no judgments, no records, just a safe space to talk. What's on your mind today?"
+      }])
+    }
   }
 
   // Load best model silently in background while quick model is in use
@@ -1310,6 +1368,16 @@ export default function TherapySpace() {
                 >
                   ↑
                 </motion.button>
+                {contextRestored && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    style={{ fontSize: '0.78rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}
+                  >
+                    📂 Context restored
+                  </motion.div>
+                )}
                 {isSummarizing && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -1361,9 +1429,17 @@ export default function TherapySpace() {
         onClose={() => setShowHistory(false)}
         authFetch={authFetch}
         encKey={encKey}
-        setMessages={setMessages}
+        setMessages={(msgs) => {
+          setMessages(msgs)
+          setSessionSummary('')
+          _clearCompact(activeModel)
+        }}
         setSessionId={setSessionId}
         currentSessionId={sessionId}
+        onNewChat={() => {
+          setSessionSummary('')
+          _clearCompact(activeModel)
+        }}
       />
 
       {/* Upgrade toast — shown when background model finishes loading */}

@@ -1,5 +1,19 @@
 [build]
   publish = "www"
+  command = "npm run build"
+
+# ── Netlify Environment Variables ────────────────────────────────────────────
+# Set these in: Netlify → your site → Site configuration → Environment variables
+# Only GOOGLE_CLIENT_ID is needed for the frontend.
+# All other secrets (JWT_SECRET, RESEND_API_KEY, etc.) live in config/.env
+# on your backend device — Netlify never needs them.
+#
+#   GOOGLE_CLIENT_ID = xxx.apps.googleusercontent.com
+#     → Enables the "Sign in with Google" button
+#     → Run 'bash bin/setup-accounts.sh google' for step-by-step instructions
+#     → The prebuild script auto-injects it into www/config.js at build time
+#
+# ─────────────────────────────────────────────────────────────────────────────
 
 # SPA fallback — serve index.html for any path that isn't a real file
 [[redirects]]

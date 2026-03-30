@@ -385,6 +385,9 @@ export default function TherapySpace() {
   useEffect(() => {
     // NOTE: No impression tracking on the therapy page — privacy promise
     // Check server AI availability in parallel (used as WebGPU fallback)
+    document.title = 'Your Session — Innerflect'
+    document.querySelector('meta[name="description"]')?.setAttribute('content',
+      'Private AI therapy session — all conversation stays on your device. No data leaves your browser.')
     checkServerAIAvailable(API_BASE()).then(available => setServerAIAvailable(available))
     initEngine()
     return () => {

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Aurora from '../components/Aurora'
 import SpotlightCard from '../components/SpotlightCard'
@@ -23,6 +24,12 @@ const modelOptions = [
 ]
 
 export default function About() {
+  useEffect(() => {
+    document.title = 'About — Innerflect'
+    document.querySelector('meta[name="description"]')?.setAttribute('content',
+      'Learn how Innerflect keeps your AI therapy conversations private — all processing happens in your browser using WebGPU. No data ever leaves your device.')
+  }, [])
+
   return (
     <div style={{ paddingTop: '64px' }}>
       {/* Hero */}

@@ -5,13 +5,15 @@ import Footer from './components/Footer'
 import { AuthProvider } from './context/AuthContext'
 import AuthModal from './components/AuthModal'
 import UpgradeModal from './components/UpgradeModal'
+import ErrorBoundary from './components/ErrorBoundary'
 
 // Lazy-load heavy pages so the initial bundle stays tiny
-const Landing = lazy(() => import('./pages/Landing'))
+const Landing     = lazy(() => import('./pages/Landing'))
 const TherapySpace = lazy(() => import('./pages/TherapySpace'))
-const About = lazy(() => import('./pages/About'))
-const FAQ = lazy(() => import('./pages/FAQ'))
-const Privacy = lazy(() => import('./pages/Privacy'))
+const About       = lazy(() => import('./pages/About'))
+const FAQ         = lazy(() => import('./pages/FAQ'))
+const Privacy     = lazy(() => import('./pages/Privacy'))
+const NotFound    = lazy(() => import('./pages/NotFound'))
 
 function PageLoader() {
   return (
@@ -45,15 +47,18 @@ export default function App() {
   return (
     <AuthProvider>
       <Nav onSignIn={() => { setAuthMode('login'); setShowAuth(true) }} />
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/therapy" element={<TherapySpace />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/faq" element={<FAQ />} />
-          <Route path="/privacy" element={<Privacy />} />
-        </Routes>
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/"        element={<Landing />} />
+            <Route path="/therapy" element={<ErrorBoundary><TherapySpace /></ErrorBoundary>} />
+            <Route path="/about"   element={<About />} />
+            <Route path="/faq"     element={<FAQ />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="*"        element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
       <Footer />
 
       {showAuth && (

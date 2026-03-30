@@ -8,14 +8,15 @@ export const PLAN_LIMITS = {
   pro:   { sessionMins: Infinity, label: 'Pro — Unlimited', showTimer: false },
 }
 
-const ANON_USAGE_KEY = 'Innerflect_usage'
+const ANON_USAGE_KEY = 'innerflect_usage'
 const API = () => window.API_BASE || window.INNERFLECT_API_BASE || ''
 
 function getFingerprint() {
-  let fp = localStorage.getItem('vx_fp')
+  // Prefer migrated key; migration shim in useModelDetect handles the one-time rename
+  let fp = localStorage.getItem('innerflect_fp')
   if (!fp) {
     fp = Math.random().toString(36).slice(2) + Date.now().toString(36)
-    localStorage.setItem('vx_fp', fp)
+    localStorage.setItem('innerflect_fp', fp)
   }
   return fp
 }

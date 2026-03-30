@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+
+const API = () => window.API_BASE || window.INNERFLECT_API_BASE || ''
 
 const TIERS = [
   {
@@ -36,22 +39,45 @@ const TIERS = [
 
 export default function UpgradeModal({ onClose, onLogin, onRegister }) {
   const { user } = useAuth()
+  const [upgrading, setUpgrading] = useState(false)
+  const [upgradeError, setUpgradeError] = useState('')
   const currentPlan = user?.plan === 'pro' ? 'pro' : user ? 'free' : 'anon'
 
-  const handleCta = (tier) => {
+  const handleCta = async (tier) => {
     if (tier.ctaDisabled) return
-    if (tier.plan === 'free') { onClose(); onRegister?.() }
-    else if (tier.plan === 'pro') {
-      fetch((window.API_BASE || window.INNERFLECT_API_BASE || '') + '/api/subscription/upgrade', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${user?.token || ''}` }
-      }).then(r => r.json()).then(d => alert(d.message || 'Coming soon!')).catch(() => alert('Coming soon!'))
+    if (tier.plan === 'free') { onClose(); onRegister?.(); return }
+    if (tier.plan === 'pro') {
+      if (!user) { onClose(); onLogin?.(); return }
+      setUpgrading(true)
+      setUpgradeError('')
+      try {
+        const r = await fetch(`${API()}/api/subscription/upgrade`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${user.token || ''}`,
+          },
+        })
+        const d = await r.json()
+        if (d.checkout_url) {
+          window.location.href = d.checkout_url
+        } else {
+          setUpgradeError(d.detail || d.message || 'Unable to start checkout. Please try again.')
+        }
+      } catch {
+        setUpgradeError('Network error — please check your connection and try again.')
+      } finally {
+        setUpgrading(false)
+      }
     }
   }
 
   return (
     <AnimatePresence>
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose your plan"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -72,9 +98,16 @@ export default function UpgradeModal({ onClose, onLogin, onRegister }) {
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '1.1rem' }}>×</button>
           </div>
 
+          {upgradeError && (
+            <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px', color: '#f87171', fontSize: '0.85rem' }}>
+              ⚠ {upgradeError}
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '1rem' }}>
             {TIERS.map(tier => {
               const isActive = tier.plan === currentPlan
+              const isLoadingThis = upgrading && tier.plan === 'pro'
               return (
                 <div key={tier.plan} style={{
                   background: isActive ? 'rgba(124,58,237,0.08)' : 'rgba(255,255,255,0.02)',
@@ -93,17 +126,18 @@ export default function UpgradeModal({ onClose, onLogin, onRegister }) {
                   </ul>
                   <button
                     onClick={() => handleCta(tier)}
-                    disabled={tier.ctaDisabled || isActive}
+                    disabled={tier.ctaDisabled || isActive || upgrading}
                     style={{
                       width: '100%', padding: '0.75rem', borderRadius: '12px',
-                      fontSize: '0.9rem', fontWeight: 600, cursor: tier.ctaDisabled || isActive ? 'default' : 'pointer',
+                      fontSize: '0.9rem', fontWeight: 600,
+                      cursor: tier.ctaDisabled || isActive || upgrading ? 'default' : 'pointer',
                       background: isActive ? 'rgba(124,58,237,0.1)' : tier.plan === 'pro' ? 'linear-gradient(135deg,#7c3aed,#06b6d4)' : `rgba(${tier.color === '#06b6d4' ? '6,182,212' : '100,116,139'},0.15)`,
                       color: isActive ? '#7c3aed' : tier.plan === 'pro' ? 'white' : tier.color,
                       border: `1px solid ${isActive ? 'rgba(124,58,237,0.4)' : 'transparent'}`,
                       opacity: tier.ctaDisabled ? 0.5 : 1,
                     }}
                   >
-                    {isActive ? '✓ Current plan' : tier.cta}
+                    {isLoadingThis ? '⏳ Redirecting…' : isActive ? '✓ Current plan' : tier.cta}
                   </button>
                 </div>
               )

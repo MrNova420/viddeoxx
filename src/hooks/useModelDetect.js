@@ -73,7 +73,31 @@ export const MODELS = [
 ]
 
 export const DEFAULT_MODEL_ID = MODELS[4].id // Phi-3.5-mini
-export const STORAGE_KEY = 'viddeoxx_model_id'
+export const STORAGE_KEY = 'innerflect_model_id'
+
+// Migration: rename old viddeoxx_ keys to innerflect_ (one-time, preserves user preference)
+;(function migrateStorageKeys() {
+  const OLD_MODEL_KEY = 'viddeoxx_model_id'
+  const OLD_VISIT_KEY = 'viddeoxx_first_visit_done'
+  const OLD_FP_KEY    = 'vx_fp'
+  const OLD_USAGE_KEY = 'Innerflect_usage'
+  if (localStorage.getItem(OLD_MODEL_KEY) && !localStorage.getItem('innerflect_model_id')) {
+    localStorage.setItem('innerflect_model_id', localStorage.getItem(OLD_MODEL_KEY))
+    localStorage.removeItem(OLD_MODEL_KEY)
+  }
+  if (localStorage.getItem(OLD_VISIT_KEY) && !localStorage.getItem('innerflect_first_visit_done')) {
+    localStorage.setItem('innerflect_first_visit_done', localStorage.getItem(OLD_VISIT_KEY))
+    localStorage.removeItem(OLD_VISIT_KEY)
+  }
+  if (localStorage.getItem(OLD_FP_KEY) && !localStorage.getItem('innerflect_fp')) {
+    localStorage.setItem('innerflect_fp', localStorage.getItem(OLD_FP_KEY))
+    localStorage.removeItem(OLD_FP_KEY)
+  }
+  if (localStorage.getItem(OLD_USAGE_KEY) && !localStorage.getItem('innerflect_usage')) {
+    localStorage.setItem('innerflect_usage', localStorage.getItem(OLD_USAGE_KEY))
+    localStorage.removeItem(OLD_USAGE_KEY)
+  }
+})()
 
 // Quick (progressive-load) models:
 //   F16 devices  → SmolLM2-135M q0f16  (360MB VRAM, loads in seconds)
@@ -200,7 +224,7 @@ export async function detectBestModel(webllm) {
 }
 
 // Keys for session state
-export const FIRST_VISIT_KEY = 'viddeoxx_first_visit_done'
+export const FIRST_VISIT_KEY = 'innerflect_first_visit_done'
 
 /**
  * Returns true if we should do progressive loading.

@@ -89,6 +89,20 @@
 
 	# ── Admin dashboard ────────────────────────────────────────────
 	handle /admin* {
+		# ── SECURITY: HTTP Basic Auth gate ────────────────────────────────────
+		# WHY: /admin has no server-side auth — just a static SPA. Anyone with
+		#      the ngrok URL could reach the admin panel directly. This adds a
+		#      Caddy-level username/password wall BEFORE the SPA even loads,
+		#      as a second layer on top of any login the SPA itself may have.
+		# Username: admin
+		# Password: stored in VIDDEOXX_ADMIN_PASS env var in config/.env
+		#           (the hash below was generated from the initial setup password —
+		#            regenerate with: ./caddy hash-password --plaintext "newpass")
+		# If the SPA breaks auth: this is the outer lock, SPA login is the inner.
+		# To temporarily disable for local dev only: wrap in `@not_local` matcher.
+		basic_auth {
+			admin $2a$14$uWNKTjwn6f6u5QOE.HP7fOedTo6U3tsb3sh/Ypgoev.swaF4B0Wwa
+		}
 		uri strip_prefix /admin
 		root * {$SITE_DIR}/admin
 		file_server {

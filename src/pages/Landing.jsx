@@ -137,6 +137,9 @@ export default function Landing() {
   const { trackImpression } = useGhostSlayer()
 
   useEffect(() => {
+    document.title = 'Innerflect — Private AI Therapy Companion'
+    document.querySelector('meta[name="description"]')?.setAttribute('content',
+      'Your conversations stay on your device. Innerflect is a private, secure AI therapy companion that runs entirely in your browser with no data ever leaving your device.')
     trackImpression('landing-page')
   }, [])
 

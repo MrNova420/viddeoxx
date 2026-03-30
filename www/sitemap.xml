@@ -3,24 +3,38 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
 
   <url>
-    <loc>https://viddeoxx.netlify.app/</loc>
+    <loc>https://innerflect.netlify.app/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-    <lastmod>2026-03-06</lastmod>
+    <lastmod>2026-03-30</lastmod>
   </url>
 
   <url>
-    <loc>https://viddeoxx.netlify.app/therapy</loc>
+    <loc>https://innerflect.netlify.app/therapy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
-    <lastmod>2026-03-06</lastmod>
+    <lastmod>2026-03-30</lastmod>
   </url>
 
   <url>
-    <loc>https://viddeoxx.netlify.app/about</loc>
+    <loc>https://innerflect.netlify.app/about</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <lastmod>2026-03-06</lastmod>
+    <lastmod>2026-03-30</lastmod>
+  </url>
+
+  <url>
+    <loc>https://innerflect.netlify.app/faq</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <lastmod>2026-03-30</lastmod>
+  </url>
+
+  <url>
+    <loc>https://innerflect.netlify.app/privacy</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+    <lastmod>2026-03-30</lastmod>
   </url>
 
 </urlset>

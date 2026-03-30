@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Aurora from '../components/Aurora'
 import { Link } from 'react-router-dom'
@@ -185,6 +185,12 @@ function FAQItem({ q, a }) {
 
 export default function FAQ() {
   const [activeCategory, setActiveCategory] = useState(null)
+
+  useEffect(() => {
+    document.title = 'FAQ — Innerflect'
+    document.querySelector('meta[name="description"]')?.setAttribute('content',
+      'Frequently asked questions about Innerflect — how private AI therapy works, what data we collect, how to use it offline, and more.')
+  }, [])
 
   const displayed = activeCategory
     ? faqs.filter(f => f.category === activeCategory)

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Aurora from '../components/Aurora'
 import GlassSurface from '../components/GlassSurface'
@@ -154,6 +155,12 @@ const sections = [
 ]
 
 export default function Privacy() {
+  useEffect(() => {
+    document.title = 'Privacy Policy — Innerflect'
+    document.querySelector('meta[name="description"]')?.setAttribute('content',
+      'Innerflect privacy policy — we collect almost nothing. Your AI conversations never leave your device. Read exactly what we do and don\'t store.')
+  }, [])
+
   return (
     <div style={{ paddingTop: '64px' }}>
       {/* Hero */}

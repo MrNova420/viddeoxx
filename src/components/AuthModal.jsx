@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const API = () => window.API_BASE || window.INNERFLECT_API_BASE || ''
 
 function validate(mode, email, password, name) {
   if (mode === 'signup' && (!name || name.trim().length < 2))
     return 'Please enter your name (at least 2 characters)'
   if (!email || !EMAIL_RE.test(email.trim()))
     return 'Please enter a valid email address'
-  if (!password || password.length < 6)
+  if (mode !== 'forgot' && (!password || password.length < 6))
     return 'Password must be at least 6 characters'
   return null
 }
@@ -20,6 +21,7 @@ export default function AuthModal({ mode: initialMode = 'login', onClose }) {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
 
@@ -69,6 +71,24 @@ export default function AuthModal({ mode: initialMode = 'login', onClose }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    setSuccess('')
+
+    if (mode === 'forgot') {
+      if (!email || !EMAIL_RE.test(email.trim())) { setError('Enter a valid email address'); return }
+      setLoading(true)
+      try {
+        await fetch(`${API()}/api/auth/forgot-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim() })
+        })
+        // Always show success — never reveal if email exists (security)
+        setSuccess('If that email is registered, a reset link is on its way. Check your inbox.')
+      } catch { setError('Network error — please try again.') }
+      finally { setLoading(false) }
+      return
+    }
+
     const validationError = validate(mode, email, password, name)
     if (validationError) { setError(validationError); return }
     setLoading(true)
@@ -86,10 +106,22 @@ export default function AuthModal({ mode: initialMode = 'login', onClose }) {
     }
   }
 
-  function switchMode(m) { setMode(m); setError(''); setFieldErrors({}) }
+  function switchMode(m) { setMode(m); setError(''); setSuccess(''); setFieldErrors({}) }
+
+  const isForgot = mode === 'forgot'
+
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={isForgot ? 'Reset password' : mode === 'login' ? 'Sign in' : 'Create account'}
       onClick={onClose}
       style={{ position:'fixed',inset:0,zIndex:600,background:'rgba(10,10,15,0.85)',backdropFilter:'blur(20px)',display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem' }}
     >
@@ -101,19 +133,24 @@ export default function AuthModal({ mode: initialMode = 'login', onClose }) {
         <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.5rem' }}>
           <div>
             <h2 style={{ color:'#f1f5f9',fontSize:'1.3rem',fontWeight:700,margin:0 }}>
-              {mode === 'login' ? 'Welcome back' : 'Create free account'}
+              {isForgot ? 'Reset password' : mode === 'login' ? 'Welcome back' : 'Create free account'}
             </h2>
             {mode === 'signup' && (
               <p style={{ color:'#64748b',fontSize:'0.8rem',margin:'0.25rem 0 0' }}>
                 Get 60 min/day free — double your session time ✨
               </p>
             )}
+            {isForgot && (
+              <p style={{ color:'#64748b',fontSize:'0.8rem',margin:'0.25rem 0 0' }}>
+                We'll send a reset link to your email
+              </p>
+            )}
           </div>
-          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'#94a3b8',borderRadius:'50%',width:'32px',height:'32px',cursor:'pointer',fontSize:'1rem' }}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{ background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'#94a3b8',borderRadius:'50%',width:'32px',height:'32px',cursor:'pointer',fontSize:'1rem' }}>×</button>
         </div>
 
         {/* Google button — only shown when a real client ID is configured */}
-        {googleReady && (
+        {googleReady && !isForgot && (
           <>
             <button
               onClick={() => window.__googleSignIn?.()}
@@ -136,49 +173,76 @@ export default function AuthModal({ mode: initialMode = 'login', onClose }) {
           </>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ display:'flex',flexDirection:'column',gap:'0.6rem' }}>
-          {mode === 'signup' && (
+        {/* Success state (forgot password sent) */}
+        {success ? (
+          <div style={{ padding:'1.25rem',background:'rgba(16,185,129,0.08)',border:'1px solid rgba(16,185,129,0.25)',borderRadius:'12px',color:'#6ee7b7',fontSize:'0.88rem',lineHeight:1.6,textAlign:'center',marginBottom:'1rem' }}>
+            ✅ {success}
+          </div>
+        ) : (
+          /* Form */
+          <form onSubmit={handleSubmit} style={{ display:'flex',flexDirection:'column',gap:'0.6rem' }}>
+            {mode === 'signup' && (
+              <div>
+                <input type="text" placeholder="Your name" value={name}
+                  onChange={e => { setName(e.target.value); validateField('name', e.target.value) }}
+                  style={{ ...inputStyle, borderColor: fieldErrors.name ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)' }} />
+                {fieldErrors.name && <p style={fieldErrStyle}>{fieldErrors.name}</p>}
+              </div>
+            )}
             <div>
-              <input type="text" placeholder="Your name" value={name}
-                onChange={e => { setName(e.target.value); validateField('name', e.target.value) }}
-                style={{ ...inputStyle, borderColor: fieldErrors.name ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)' }} />
-              {fieldErrors.name && <p style={fieldErrStyle}>{fieldErrors.name}</p>}
+              <input type="email" placeholder="Email address" value={email}
+                onChange={e => { setEmail(e.target.value); validateField('email', e.target.value) }}
+                style={{ ...inputStyle, borderColor: fieldErrors.email ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)' }} />
+              {fieldErrors.email && <p style={fieldErrStyle}>{fieldErrors.email}</p>}
             </div>
-          )}
-          <div>
-            <input type="email" placeholder="Email address" value={email}
-              onChange={e => { setEmail(e.target.value); validateField('email', e.target.value) }}
-              style={{ ...inputStyle, borderColor: fieldErrors.email ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)' }} />
-            {fieldErrors.email && <p style={fieldErrStyle}>{fieldErrors.email}</p>}
-          </div>
-          <div>
-            <input type="password" placeholder="Password (min 6 characters)" value={password}
-              onChange={e => { setPassword(e.target.value); validateField('password', e.target.value) }}
-              style={{ ...inputStyle, borderColor: fieldErrors.password ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)' }} />
-            {fieldErrors.password && <p style={fieldErrStyle}>{fieldErrors.password}</p>}
-          </div>
+            {!isForgot && (
+              <div>
+                <input type="password" placeholder="Password (min 6 characters)" value={password}
+                  onChange={e => { setPassword(e.target.value); validateField('password', e.target.value) }}
+                  style={{ ...inputStyle, borderColor: fieldErrors.password ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)' }} />
+                {fieldErrors.password && <p style={fieldErrStyle}>{fieldErrors.password}</p>}
+              </div>
+            )}
 
-          {error && (
-            <p style={{ color:'#f87171',fontSize:'0.82rem',margin:0,padding:'0.5rem 0.75rem',background:'rgba(239,68,68,0.08)',borderRadius:'8px',border:'1px solid rgba(239,68,68,0.2)' }}>
-              ⚠ {error}
-            </p>
-          )}
+            {error && (
+              <p style={{ color:'#f87171',fontSize:'0.82rem',margin:0,padding:'0.5rem 0.75rem',background:'rgba(239,68,68,0.08)',borderRadius:'8px',border:'1px solid rgba(239,68,68,0.2)' }}>
+                ⚠ {error}
+              </p>
+            )}
 
-          <button type="submit" disabled={loading}
-            style={{ background:loading?'rgba(124,58,237,0.3)':'linear-gradient(135deg,#7c3aed,#06b6d4)',color:'#fff',border:'none',borderRadius:'12px',padding:'0.875rem',fontSize:'0.95rem',fontWeight:700,cursor:loading?'not-allowed':'pointer',marginTop:'0.25rem' }}
-          >
-            {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create free account'}
-          </button>
-        </form>
+            <button type="submit" disabled={loading}
+              style={{ background:loading?'rgba(124,58,237,0.3)':'linear-gradient(135deg,#7c3aed,#06b6d4)',color:'#fff',border:'none',borderRadius:'12px',padding:'0.875rem',fontSize:'0.95rem',fontWeight:700,cursor:loading?'not-allowed':'pointer',marginTop:'0.25rem' }}
+            >
+              {loading ? 'Please wait…' : isForgot ? 'Send reset link' : mode === 'login' ? 'Sign in' : 'Create free account'}
+            </button>
 
-        <p style={{ textAlign:'center',color:'#64748b',fontSize:'0.83rem',marginTop:'1.25rem',marginBottom:0 }}>
-          {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-          <button onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
-            style={{ background:'none',border:'none',color:'#a78bfa',cursor:'pointer',fontWeight:600,fontSize:'0.83rem',padding:0 }}>
-            {mode === 'login' ? 'Sign up free →' : 'Sign in'}
-          </button>
-        </p>
+            {/* Forgot password link — only in login mode */}
+            {mode === 'login' && (
+              <button type="button" onClick={() => switchMode('forgot')}
+                style={{ background:'none',border:'none',color:'#64748b',cursor:'pointer',fontSize:'0.78rem',padding:'0.1rem',textAlign:'center',marginTop:'0.1rem' }}>
+                Forgot password?
+              </button>
+            )}
+          </form>
+        )}
+
+        {/* Mode switcher */}
+        {!isForgot ? (
+          <p style={{ textAlign:'center',color:'#64748b',fontSize:'0.83rem',marginTop:'1.25rem',marginBottom:0 }}>
+            {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+            <button onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
+              style={{ background:'none',border:'none',color:'#a78bfa',cursor:'pointer',fontWeight:600,fontSize:'0.83rem',padding:0 }}>
+              {mode === 'login' ? 'Sign up free →' : 'Sign in'}
+            </button>
+          </p>
+        ) : (
+          <p style={{ textAlign:'center',color:'#64748b',fontSize:'0.83rem',marginTop:'1.25rem',marginBottom:0 }}>
+            <button onClick={() => switchMode('login')}
+              style={{ background:'none',border:'none',color:'#a78bfa',cursor:'pointer',fontWeight:600,fontSize:'0.83rem',padding:0 }}>
+              ← Back to sign in
+            </button>
+          </p>
+        )}
 
         <p style={{ textAlign:'center',color:'#334155',fontSize:'0.72rem',marginTop:'0.75rem',marginBottom:0 }}>
           No credit card · AI runs in your browser · private by design

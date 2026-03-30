@@ -4,6 +4,7 @@ Zero tracking. No IP storage. No sessions. Anonymous by design.
 """
 # ── Standard library ─────────────────────────────────────────────────────────
 import os, time, asyncpg, hashlib, secrets, json as _json
+import hmac, logging
 import httpx
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -44,9 +45,12 @@ _cfg = _load_env()
 def _env(key: str, fallback: str = "") -> str:
     return _cfg.get(key) or os.environ.get(key, fallback)
 
-ADMIN_TOKEN     = _env("INNERFLECT_ADMIN_TOKEN")
-DISCORD_WEBHOOK = _env("DISCORD_WEBHOOK")
-OR_KEY          = _env("OPENROUTER_API_KEY", "")
+ADMIN_TOKEN           = _env("INNERFLECT_ADMIN_TOKEN")
+DISCORD_WEBHOOK       = _env("DISCORD_WEBHOOK")
+OR_KEY                = _env("OPENROUTER_API_KEY", "")
+STRIPE_SECRET_KEY     = _env("STRIPE_SECRET_KEY")
+STRIPE_WEBHOOK_SECRET = _env("STRIPE_WEBHOOK_SECRET")
+STRIPE_PRICE_ID       = _env("STRIPE_PRICE_ID", "")
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  2. REDIS — optional cache layer; all ops silently fall back on failure
@@ -227,7 +231,28 @@ async def init_db(pool):
                 PRIMARY KEY (fingerprint, day)
             )
         """)
+        await con.execute("""
+            CREATE TABLE IF NOT EXISTS password_resets (
+                token      TEXT PRIMARY KEY,
+                user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                expires_at BIGINT NOT NULL,
+                created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+            )
+        """)
+        await con.execute("""
+            CREATE TABLE IF NOT EXISTS refresh_tokens (
+                token      TEXT PRIMARY KEY,
+                user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                expires_at BIGINT NOT NULL,
+                created_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT
+            )
+        """)
+        await con.execute("CREATE INDEX IF NOT EXISTS idx_rt_user ON refresh_tokens(user_id)")
         # ── Schema migrations (idempotent) ────────────────────────────────
+        # Add preferences JSONB column to users if missing
+        await con.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'"
+        )
         existing = await con.fetchval(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name='contacts' AND column_name='reply_via'"
@@ -266,6 +291,11 @@ async def lifespan(app: FastAPI):
     global _pool
     _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
     await init_db(_pool)
+    # Clean up expired sessions, password reset tokens, and refresh tokens on startup
+    now_ts = int(time.time())
+    async with _pool.acquire() as conn:
+        await conn.execute("DELETE FROM password_resets WHERE expires_at < $1", now_ts)
+        await conn.execute("DELETE FROM refresh_tokens WHERE expires_at < $1", now_ts)
     yield
     if _pool:
         await _pool.close()
@@ -284,17 +314,18 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
+    allow_origins=list(filter(None, [
         "http://localhost:8090",
         "http://127.0.0.1:8090",
-        f"https://{_env('DOMAIN', 'localhost')}",
-        f"https://www.{_env('DOMAIN', 'localhost')}",
-        f"https://{_env('NGROK_DOMAIN', '')}",
-        f"https://{_env('NETLIFY_DOMAIN', '')}",
-        "https://*.netlify.app",
-    ],
+        "https://innerflect.netlify.app",
+        f"https://{_env('DOMAIN', '')}" if _env('DOMAIN', '') else None,
+        f"https://www.{_env('DOMAIN', '')}" if _env('DOMAIN', '') else None,
+        f"https://{_env('NGROK_DOMAIN', '')}" if _env('NGROK_DOMAIN', '') else None,
+        f"https://{_env('NETLIFY_DOMAIN', '')}" if _env('NETLIFY_DOMAIN', '') else None,
+    ])),
     allow_methods=["GET", "POST", "DELETE"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+    allow_credentials=False,
 )
 
 @app.middleware("http")
@@ -332,11 +363,22 @@ def _require_admin(token: str, request: Request):
 #  6. JWT AUTH HELPERS
 # ═════════════════════════════════════════════════════════════════════════════
 JWT_SECRET   = _env("JWT_SECRET", "innerflect-jwt-secret-change-in-prod")
-JWT_EXP_DAYS = 30
+JWT_EXP_DAYS = 7    # short-lived access tokens — silently refreshed by frontend
+RT_EXP_DAYS  = 90   # long-lived refresh tokens — rotated on each refresh
+
+if JWT_SECRET == "innerflect-jwt-secret-change-in-prod":
+    logging.warning(
+        "⚠️  JWT_SECRET is using the default insecure value! "
+        "Set JWT_SECRET in config/.env before going to production!"
+    )
 
 def _make_token(user_id: int) -> str:
     exp = datetime.now(timezone.utc) + timedelta(days=JWT_EXP_DAYS)
     return pyjwt.encode({"sub": str(user_id), "exp": exp}, JWT_SECRET, algorithm="HS256")
+
+def _make_refresh_token() -> str:
+    """Cryptographically random 64-hex refresh token — opaque, not a JWT."""
+    return secrets.token_hex(32)
 
 async def _get_current_user(request: Request):
     """Extract and validate JWT from Authorization header or query param."""
@@ -352,9 +394,14 @@ async def _get_current_user(request: Request):
         return None
     async with _pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, email, name, avatar_url, plan FROM users WHERE id=$1", user_id
+            "SELECT id, email, name, avatar_url, plan, preferences FROM users WHERE id=$1", user_id
         )
-    return dict(row) if row else None
+    if not row:
+        return None
+    user = dict(row)
+    if user.get("preferences") is None:
+        user["preferences"] = {}
+    return user
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  7. DISCORD HELPERS
@@ -413,6 +460,35 @@ class UsageIn(BaseModel):
     minutes: int
     fingerprint: str = ""
 
+class PreferencesIn(BaseModel):
+    preferences: dict
+
+class AnonRecordIn(BaseModel):
+    fingerprint: str
+    minutes: int
+
+class ForgotPasswordIn(BaseModel):
+    email: str
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
+
+class RefreshIn(BaseModel):
+    refresh_token: str
+
+# ── Internal helper — issue access + refresh token pair ──────────────────────
+async def _issue_tokens(conn, user_id: int) -> dict:
+    """Create a new access token + refresh token pair. Stores refresh token in DB."""
+    access = _make_token(user_id)
+    rt = _make_refresh_token()
+    expires = int(time.time()) + RT_EXP_DAYS * 86400
+    await conn.execute(
+        "INSERT INTO refresh_tokens (token, user_id, expires_at) VALUES ($1,$2,$3)",
+        rt, user_id, expires
+    )
+    return {"token": access, "refresh_token": rt}
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  8. PUBLIC ROUTES
 # ═════════════════════════════════════════════════════════════════════════════
@@ -440,8 +516,9 @@ async def auth_register(body: RegisterIn, request: Request):
         if "unique" in str(e).lower():
             raise HTTPException(409, "Email already registered")
         raise HTTPException(500, "Registration failed")
-    token = _make_token(row["id"])
-    return {"token": token, "user": dict(row)}
+    async with _pool.acquire() as conn:
+        tokens = await _issue_tokens(conn, row["id"])
+    return {**tokens, "user": dict(row)}
 
 @app.post("/api/auth/login")
 async def auth_login(body: LoginIn, request: Request):
@@ -454,9 +531,10 @@ async def auth_login(body: LoginIn, request: Request):
         raise HTTPException(401, "Invalid email or password")
     if not bcrypt.checkpw(body.password.encode(), row["password_hash"].encode()):
         raise HTTPException(401, "Invalid email or password")
-    token = _make_token(row["id"])
     user = {k: v for k, v in dict(row).items() if k != "password_hash"}
-    return {"token": token, "user": user}
+    async with _pool.acquire() as conn:
+        tokens = await _issue_tokens(conn, row["id"])
+    return {**tokens, "user": user}
 
 @app.post("/api/auth/google")
 async def auth_google(body: GoogleAuthIn, request: Request):
@@ -483,8 +561,8 @@ async def auth_google(body: GoogleAuthIn, request: Request):
             ON CONFLICT (google_id) DO UPDATE SET name=EXCLUDED.name, avatar_url=EXCLUDED.avatar_url
             RETURNING id, email, name, avatar_url, plan
         """, google_id, email, name, avatar)
-    token = _make_token(row["id"])
-    return {"token": token, "user": dict(row)}
+        tokens = await _issue_tokens(conn, row["id"])
+    return {**tokens, "user": dict(row)}
 
 @app.get("/api/auth/me")
 async def auth_me(request: Request):
@@ -494,23 +572,214 @@ async def auth_me(request: Request):
     return user
 
 @app.post("/api/auth/logout")
-async def auth_logout(request: Request):
+async def auth_logout(body: RefreshIn = None, request: Request = None):
+    """Revoke refresh token on logout."""
+    if body and body.refresh_token:
+        async with _pool.acquire() as conn:
+            await conn.execute("DELETE FROM refresh_tokens WHERE token=$1", body.refresh_token)
     return {"ok": True}
+
+@app.post("/api/auth/refresh")
+@limiter.limit("30/minute")
+async def auth_refresh(body: RefreshIn, request: Request):
+    """Exchange a valid refresh token for a new access token + rotated refresh token."""
+    now_ts = int(time.time())
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT user_id, expires_at FROM refresh_tokens WHERE token=$1", body.refresh_token
+        )
+        if not row or row["expires_at"] < now_ts:
+            # Delete if expired (cleanup)
+            if row:
+                await conn.execute("DELETE FROM refresh_tokens WHERE token=$1", body.refresh_token)
+            raise HTTPException(401, "Refresh token invalid or expired — please log in again")
+        # Rotate: delete old, issue new pair
+        await conn.execute("DELETE FROM refresh_tokens WHERE token=$1", body.refresh_token)
+        user_id = row["user_id"]
+        user = await conn.fetchrow(
+            "SELECT id, email, name, avatar_url, plan FROM users WHERE id=$1", user_id
+        )
+        if not user:
+            raise HTTPException(401, "User not found")
+        tokens = await _issue_tokens(conn, user_id)
+    return {**tokens, "user": dict(user)}
+
+# ── Password reset helper ──────────────────────────────────────────────────
+async def _send_password_reset_email(email: str, token: str):
+    reset_url = f"{_env('SITE_URL', 'https://innerflect.netlify.app')}/?reset={token}"
+    resend_key = _env("RESEND_API_KEY", "")
+    if resend_key:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {resend_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from": "Innerflect <noreply@innerflect.app>",
+                    "to": [email],
+                    "subject": "Reset your Innerflect password",
+                    "html": (
+                        f"<p>Click to reset your password (expires in 1 hour):</p>"
+                        f"<p><a href='{reset_url}'>{reset_url}</a></p>"
+                        f"<p>If you didn't request this, ignore this email.</p>"
+                    ),
+                },
+            )
+    else:
+        print(f"[innerflect] Password reset token for user: {reset_url}")
+
+@app.post("/api/auth/forgot-password")
+@limiter.limit("5/minute")
+async def auth_forgot_password(body: ForgotPasswordIn, request: Request):
+    """Always returns 200 — does not leak whether email exists."""
+    email = body.email.lower().strip()
+    generic_response = {"message": "If that email exists, a reset link was sent."}
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id FROM users WHERE email=$1", email)
+    if not row:
+        return generic_response
+    token = secrets.token_hex(24)  # 48-char hex
+    expires_at = int(time.time()) + 3600  # 1 hour
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO password_resets (token, user_id, expires_at) VALUES ($1,$2,$3)",
+            token, row["id"], expires_at,
+        )
+    try:
+        await _send_password_reset_email(email, token)
+    except Exception:
+        pass  # Never fail the request if email sending fails
+    return generic_response
+
+@app.post("/api/auth/reset-password")
+@limiter.limit("10/minute")
+async def auth_reset_password(body: ResetPasswordIn, request: Request):
+    if not body.password or len(body.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+    now_ts = int(time.time())
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT user_id, expires_at FROM password_resets WHERE token=$1",
+            body.token,
+        )
+        if not row:
+            raise HTTPException(400, "Invalid or expired reset token")
+        if row["expires_at"] < now_ts:
+            await conn.execute("DELETE FROM password_resets WHERE token=$1", body.token)
+            raise HTTPException(400, "Reset token has expired")
+        pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+        user_id = row["user_id"]
+        await conn.execute(
+            "UPDATE users SET password_hash=$1 WHERE id=$2", pw_hash, user_id
+        )
+        await conn.execute(
+            "DELETE FROM password_resets WHERE user_id=$1", user_id
+        )
+    return {"message": "Password updated successfully"}
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  10. SUBSCRIPTION
 # ═════════════════════════════════════════════════════════════════════════════
 @app.post("/api/subscription/upgrade")
 async def subscription_upgrade(request: Request):
-    """Placeholder — wire Stripe here later."""
     user = await _get_current_user(request)
     if not user:
         raise HTTPException(401, "Not authenticated")
-    # TODO: integrate Stripe checkout session here
-    return {"status": "pending", "message": "Payment integration coming soon. Contact support to upgrade manually."}
+    if not STRIPE_SECRET_KEY:
+        return {"status": "unavailable", "message": "Payment not configured"}
+    if user["plan"] == "pro":
+        return {"status": "already_pro"}
+    site_url = _env("SITE_URL", "https://innerflect.netlify.app")
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            "https://api.stripe.com/v1/checkout/sessions",
+            auth=(STRIPE_SECRET_KEY, ""),
+            data={
+                "mode": "subscription",
+                "line_items[0][price]": STRIPE_PRICE_ID,
+                "line_items[0][quantity]": "1",
+                "success_url": f"{site_url}/therapy?upgraded=1",
+                "cancel_url": f"{site_url}/therapy",
+                "customer_email": user.get("email", ""),
+                "metadata[user_id]": str(user["id"]),
+            },
+        )
+    if resp.status_code != 200:
+        raise HTTPException(502, "Failed to create Stripe checkout session")
+    session = resp.json()
+    return {"checkout_url": session.get("url")}
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("Stripe-Signature", "")
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(400, "Webhook not configured")
+    # Verify Stripe signature: t=timestamp,v1=signature
+    try:
+        parts = {k: v for part in sig_header.split(",") for k, v in [part.split("=", 1)]}
+        timestamp = parts.get("t", "")
+        v1_sig = parts.get("v1", "")
+        signed_payload = f"{timestamp}.".encode() + payload
+        expected = hmac.new(
+            STRIPE_WEBHOOK_SECRET.encode(), signed_payload, hashlib.sha256
+        ).hexdigest()
+        if not secrets.compare_digest(expected, v1_sig):
+            raise HTTPException(400, "Invalid signature")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(400, "Signature verification failed")
+    try:
+        event = _json.loads(payload)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+    event_type = event.get("type", "")
+    obj = event.get("data", {}).get("object", {})
+    async with _pool.acquire() as conn:
+        if event_type == "checkout.session.completed":
+            user_id = obj.get("metadata", {}).get("user_id")
+            if user_id:
+                await conn.execute(
+                    "UPDATE users SET plan='pro' WHERE id=$1", int(user_id)
+                )
+        elif event_type == "customer.subscription.deleted":
+            customer_email = obj.get("customer_email") or ""
+            customer_id = obj.get("customer") or ""
+            # Find user by customer email if available
+            if customer_email:
+                await conn.execute(
+                    "UPDATE users SET plan='free' WHERE email=$1", customer_email
+                )
+    return {"received": True}
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  11. USAGE TRACKING
+#  USER PREFERENCES
+# ═════════════════════════════════════════════════════════════════════════════
+@app.get("/api/user/preferences")
+async def get_user_preferences(request: Request):
+    user = await _get_current_user(request)
+    if not user:
+        raise HTTPException(401, "Not authenticated")
+    return {"preferences": user.get("preferences") or {}}
+
+@app.post("/api/user/preferences")
+@limiter.limit("30/minute")
+async def set_user_preferences(body: PreferencesIn, request: Request):
+    user = await _get_current_user(request)
+    if not user:
+        raise HTTPException(401, "Not authenticated")
+    import json as _jprefs
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """UPDATE users SET preferences = $1 WHERE id = $2
+               RETURNING preferences""",
+            _jprefs.dumps(body.preferences), user["id"],
+        )
+    updated = _jprefs.loads(row["preferences"]) if row and row["preferences"] else body.preferences
+    return {"preferences": updated}
 # ═════════════════════════════════════════════════════════════════════════════
 @app.post("/api/usage/record")
 async def record_usage(body: UsageIn, request: Request):
@@ -554,8 +823,51 @@ async def get_usage_today(request: Request, fingerprint: str = ""):
         return {"minutes_used": row["minutes_used"] if row else 0, "plan": "anon"}
     return {"minutes_used": 0, "plan": "anon"}
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  12. CHAT HISTORY (Pro users only)
+@app.get("/api/usage/anon-check")
+@limiter.limit("60/minute")
+async def anon_check(request: Request, fingerprint: str = ""):
+    """Check anonymous user's daily usage against the 30-minute limit."""
+    if not fingerprint:
+        raise HTTPException(400, "fingerprint required")
+    today = datetime.now(timezone.utc).date()
+    # Secondary abuse check: count distinct IP hashes for this fingerprint today
+    ip_hash = _anon_key(request)
+    cache_key = f"anon_ip:{fingerprint}:{today}"
+    r = _get_redis()
+    if r:
+        try:
+            r.sadd(cache_key, ip_hash)
+            r.expire(cache_key, 86400)
+            distinct_ips = r.scard(cache_key)
+            if distinct_ips > 5:
+                logging.warning(
+                    "[innerflect] fingerprint %s seen from >5 distinct IP hashes today",
+                    fingerprint[:16],
+                )
+        except Exception:
+            pass
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT minutes_used FROM anon_daily_usage WHERE fingerprint=$1 AND day=$2",
+            fingerprint, today,
+        )
+    return {"minutes_used": row["minutes_used"] if row else 0, "limit": 30}
+
+@app.post("/api/usage/anon-record")
+@limiter.limit("30/minute")
+async def anon_record(body: AnonRecordIn, request: Request):
+    """Upsert anonymous usage minutes for today."""
+    if not body.fingerprint:
+        raise HTTPException(400, "fingerprint required")
+    today = datetime.now(timezone.utc).date()
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO anon_daily_usage (fingerprint, day, minutes_used) VALUES ($1,$2,$3)
+               ON CONFLICT (fingerprint, day) DO UPDATE
+               SET minutes_used = anon_daily_usage.minutes_used + EXCLUDED.minutes_used""",
+            body.fingerprint, today, body.minutes,
+        )
+    return {"ok": True}
 # ═════════════════════════════════════════════════════════════════════════════
 @app.post("/api/chat/save")
 async def save_chat(request: Request):
